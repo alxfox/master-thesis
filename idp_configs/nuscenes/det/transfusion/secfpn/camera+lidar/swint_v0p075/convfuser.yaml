@@ -1,6 +1,6 @@
 model:
   fuser:
     type: ConvFuser
-    in_channels: [80, 256]
+    in_channels: [80, 256, 16]
     out_channels: 256
 

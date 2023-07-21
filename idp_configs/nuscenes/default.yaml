@@ -136,6 +136,12 @@ train_pipeline:
     ybound: [-50.0, 50.0, 0.5]
     classes: ${map_classes}
   -
+    type: LoadMap
+    dataset_root: ${dataset_root}
+    xbound: [-50.0, 50.0, 0.5]
+    ybound: [-50.0, 50.0, 0.5]
+    classes: ${map_classes}
+  -
     type: RandomFlip3D
   -
     type: PointsRangeFilter
@@ -171,6 +177,7 @@ train_pipeline:
     keys:
       - img
       - points
+      - feature_map
       - gt_bboxes_3d
       - gt_labels_3d
       - gt_masks_bev
@@ -230,6 +237,12 @@ test_pipeline:
     ybound: [-50.0, 50.0, 0.5]
     classes: ${map_classes}
   -
+    type: LoadMap
+    dataset_root: ${dataset_root}
+    xbound: [-50.0, 50.0, 0.5]
+    ybound: [-50.0, 50.0, 0.5]
+    classes: ${map_classes}
+  -
     type: PointsRangeFilter
     point_cloud_range: ${point_cloud_range}
   -
@@ -244,6 +257,7 @@ test_pipeline:
     keys:
       - img
       - points
+      - feature_map
       - gt_bboxes_3d
       - gt_labels_3d
       - gt_masks_bev

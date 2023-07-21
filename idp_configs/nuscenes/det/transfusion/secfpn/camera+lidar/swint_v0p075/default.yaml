@@ -3,6 +3,9 @@ point_cloud_range: [-54.0, -54.0, -5.0, 54.0, 54.0, 3.0]
 
 model:
   encoders:
+    map:
+      encoder:
+        - xyz
     camera:
       backbone:
         type: SwinTransformer
