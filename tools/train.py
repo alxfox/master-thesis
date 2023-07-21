@@ -67,6 +67,11 @@ def main():
 
     model = build_model(cfg.model)
     model.init_weights()
+    model.encoders.camera.requires_grad = False
+    model.encoders.lidar.requires_grad = False
+    model.decoder.requires_grad = False
+    model.heads.requires_grad = False
+    # model.fuser.load_state_dict(model_old.fuser.state_dict(),strict=False)
     if cfg.get("sync_bn", None):
         if not isinstance(cfg["sync_bn"], dict):
             cfg["sync_bn"] = dict(exclude=[])

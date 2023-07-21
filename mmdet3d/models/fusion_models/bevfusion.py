@@ -32,7 +32,6 @@ class BEVFusion(Base3DFusionModel):
         **kwargs,
     ) -> None:
         super().__init__()
-
         self.encoders = nn.ModuleDict()
         if encoders.get("camera") is not None:
             self.encoders["camera"] = nn.ModuleDict(
@@ -54,6 +53,13 @@ class BEVFusion(Base3DFusionModel):
                 }
             )
             self.voxelize_reduce = encoders["lidar"].get("voxelize_reduce", True)
+        # TODO
+        if encoders.get("map") is not None:
+            self.encoders["map"] = nn.ModuleDict(
+                {
+                    "conv": nn.Conv2d(6, 16, 3, padding=1)
+                }
+            )
 
         if fuser is not None:
             self.fuser = build_fuser(fuser)
@@ -131,7 +137,10 @@ class BEVFusion(Base3DFusionModel):
         batch_size = coords[-1, 0] + 1
         x = self.encoders["lidar"]["backbone"](feats, coords, batch_size, sizes=sizes)
         return x
-
+    #TODO
+    def extract_map_features(self, x) -> torch.Tensor:
+        x = self.encoders["map"]["conv"](x)
+        return x
     @torch.no_grad()
     @force_fp32()
     def voxelize(self, points):
@@ -220,6 +229,7 @@ class BEVFusion(Base3DFusionModel):
         gt_masks_bev=None,
         gt_bboxes_3d=None,
         gt_labels_3d=None,
+        feature_map=None,
         **kwargs,
     ):
         features = []
@@ -242,6 +252,8 @@ class BEVFusion(Base3DFusionModel):
                 )
             elif sensor == "lidar":
                 feature = self.extract_lidar_features(points)
+            elif sensor == "map":
+                feature = self.extract_map_features(feature_map)
             else:
                 raise ValueError(f"unsupported sensor: {sensor}")
             features.append(feature)
