@@ -139,8 +139,8 @@ train_pipeline:
   -
     type: LoadMap
     dataset_root: ${dataset_root}
-    xbound: [-50.0, 50.0, 0.5]
-    ybound: [-50.0, 50.0, 0.5]
+    xbound: ${map_resolution_x}
+    ybound: ${map_resolution_y}
     classes: ${map_classes}
   -
     type: RandomFlip3D
@@ -240,8 +240,8 @@ test_pipeline:
   -
     type: LoadMap
     dataset_root: ${dataset_root}
-    xbound: [-50.0, 50.0, 0.5]
-    ybound: [-50.0, 50.0, 0.5]
+    xbound: ${map_resolution_x}
+    ybound: ${map_resolution_y}
     classes: ${map_classes}
   -
     type: PointsRangeFilter
@@ -273,8 +273,8 @@ test_pipeline:
       - lidar_aug_matrix
 
 data:
-  samples_per_gpu: 4
-  workers_per_gpu: 4
+  samples_per_gpu: 1
+  workers_per_gpu: 1
   train:
     type: CBGSDataset
     dataset:

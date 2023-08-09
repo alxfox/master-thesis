@@ -1,3 +1,6 @@
+map_resolution_x: [-50.0, 50.0, 128]
+map_resolution_y: [-50.0, 50.0, 128]
+
 model:
   encoders:
     camera:
@@ -111,12 +114,16 @@ optimizer:
   type: AdamW
   lr: 1.0e-4
   weight_decay: 0.01
-  paramwise_cfg:
-    custom_keys:
-      absolute_pos_embed:
-        decay_mult: 0
-      relative_position_bias_table:
-        decay_mult: 0
+# optimizer:
+#   type: AdamW
+#   lr: 1.0e-4
+#   weight_decay: 0.01
+#   paramwise_cfg:
+#     custom_keys:
+#       absolute_pos_embed:
+#         decay_mult: 0
+#       relative_position_bias_table:
+#         decay_mult: 0
 
 optimizer_config:
   grad_clip:
@@ -124,7 +131,15 @@ optimizer_config:
     norm_type: 2
 
 lr_config:
-  policy: cyclic
+  policy: step
+  by_epoch: false
+  step: 500
+  gamma: 0.8
+  warmup: linear
+  warmup_iters: 500
+  warmup_ratio: 0.33333333
+# lr_config:
+#   policy: cyclic
 
 momentum_config:
   policy: cyclic

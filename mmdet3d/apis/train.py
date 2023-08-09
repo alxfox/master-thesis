@@ -40,9 +40,11 @@ def train_model(
         )
         for ds in dataset
     ]
-
+    # for d in data_loaders[0]:
+    #     print("check batch size: ", d.keys(), d['img']._data[0].shape) # should be B, 6, 3, 256, 704
     # put model on gpus
     find_unused_parameters = cfg.get("find_unused_parameters", False)
+    find_unused_parameters = True
     # Sets the `find_unused_parameters` parameter in
     # torch.nn.parallel.DistributedDataParallel
     model = MMDistributedDataParallel(

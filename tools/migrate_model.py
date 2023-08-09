@@ -126,10 +126,14 @@ def main():
     load_checkpoint(model_old, args.checkpoint, map_location="cpu")
     model_new.encoders.camera.load_state_dict(model_old.encoders.camera.state_dict())
     model_new.encoders.lidar.load_state_dict(model_old.encoders.lidar.state_dict())
-    # model_new.fuser.load_state_dict(model_old.fuser.state_dict(),strict=False)
     model_new.decoder.load_state_dict(model_old.decoder.state_dict())
     model_new.heads.load_state_dict(model_old.heads.state_dict())
-    save_checkpoint(model_new, "idp_pretrained/model_test.pth")
+    print(model_new.fuser.weight.data)
+    model_new.fuser.load_state_dict(model_old.fuser.state_dict(),strict=False)
+    print(torch.allclose(model_old.fuser.weight.data, model_new.fuser.weight.data), torch.allclose(model_old.fuser.weight.data, model_old.fuser.weight.data))
+    print(model_new)
+    
+    save_checkpoint(model_new, "idp_pretrained/det_model_full.pth")
 
 if __name__ == "__main__":
     main()
