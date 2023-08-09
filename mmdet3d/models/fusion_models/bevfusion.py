@@ -55,9 +55,16 @@ class BEVFusion(Base3DFusionModel):
             self.voxelize_reduce = encoders["lidar"].get("voxelize_reduce", True)
         # TODO
         if encoders.get("map") is not None:
+            prev = 6
+            modules = []
+            conv_channels = encoders["map"]["encoder"]["channels"]
+            for n in conv_channels:
+                modules.append(nn.Conv2d(prev, n, 3, padding=1))
+                modules.append(nn.ReLU())
+                prev = n
             self.encoders["map"] = nn.ModuleDict(
                 {
-                    "conv": nn.Conv2d(6, 16, 3, padding=1)
+                    "encoder": nn.Sequential(*modules)
                 }
             )
 
@@ -107,39 +114,40 @@ class BEVFusion(Base3DFusionModel):
     ) -> torch.Tensor:
         B, N, C, H, W = x.size()
         x = x.view(B * N, C, H, W)
+        with torch.no_grad():
+            x = self.encoders["camera"]["backbone"](x)
+            x = self.encoders["camera"]["neck"](x)
 
-        x = self.encoders["camera"]["backbone"](x)
-        x = self.encoders["camera"]["neck"](x)
+            if not isinstance(x, torch.Tensor):
+                x = x[0]
 
-        if not isinstance(x, torch.Tensor):
-            x = x[0]
+            BN, C, H, W = x.size()
+            x = x.view(B, int(BN / B), C, H, W)
 
-        BN, C, H, W = x.size()
-        x = x.view(B, int(BN / B), C, H, W)
-
-        x = self.encoders["camera"]["vtransform"](
-            x,
-            points,
-            camera2ego,
-            lidar2ego,
-            lidar2camera,
-            lidar2image,
-            camera_intrinsics,
-            camera2lidar,
-            img_aug_matrix,
-            lidar_aug_matrix,
-            img_metas,
-        )
-        return x
+            x = self.encoders["camera"]["vtransform"](
+                x,
+                points,
+                camera2ego,
+                lidar2ego,
+                lidar2camera,
+                lidar2image,
+                camera_intrinsics,
+                camera2lidar,
+                img_aug_matrix,
+                lidar_aug_matrix,
+                img_metas,
+            )
+            return x
 
     def extract_lidar_features(self, x) -> torch.Tensor:
         feats, coords, sizes = self.voxelize(x)
         batch_size = coords[-1, 0] + 1
-        x = self.encoders["lidar"]["backbone"](feats, coords, batch_size, sizes=sizes)
+        with torch.no_grad():
+            x = self.encoders["lidar"]["backbone"](feats, coords, batch_size, sizes=sizes)
         return x
     #TODO
     def extract_map_features(self, x) -> torch.Tensor:
-        x = self.encoders["map"]["conv"](x)
+        x = self.encoders["map"]["encoder"](x)
         return x
     @torch.no_grad()
     @force_fp32()
