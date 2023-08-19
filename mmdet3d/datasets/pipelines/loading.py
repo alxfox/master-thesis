@@ -270,7 +270,7 @@ class LoadBEVSegmentation:
         rotation = lidar2global[:3, :3]
         v = np.dot(rotation, np.array([1, 0, 0]))
         yaw = np.arctan2(v[1], v[0])
-        patch_angle = yaw / np.pi * 180 #- 90# + 180
+        patch_angle = yaw / np.pi * 180# - 90# + 180
 
         mappings = {}
         for name in self.classes:
@@ -337,11 +337,11 @@ class LoadMap:
         lidar2global = ego2global @ lidar2ego @ point2lidar
         map_pose = lidar2global[:2, 3]
         patch_box = (map_pose[0], map_pose[1], self.patch_size[0], self.patch_size[1])
-
+        # print("map_pose is", map_pose)
         rotation = lidar2global[:3, :3]
         v = np.dot(rotation, np.array([1, 0, 0]))
         yaw = np.arctan2(v[1], v[0])
-        patch_angle = yaw / np.pi * 180 #- 90# + 180
+        patch_angle = yaw / np.pi * 180 - 90# + 180
 
         mappings = {}
         for name in self.classes:
@@ -358,6 +358,7 @@ class LoadMap:
         layer_names = list(set(layer_names))
 
         location = data["location"]
+        # print("loc", location)
         # TODO
         masks = self.maps[location].get_map_mask(
             patch_box=patch_box,

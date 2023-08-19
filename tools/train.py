@@ -6,7 +6,7 @@ import time
 import numpy as np
 import torch
 from mmcv import Config
-from mmcv.runner import load_checkpoint
+# from mmcv.runner import load_checkpoint
 from torchpack import distributed as dist
 from torchpack.environ import auto_set_run_dir, set_run_dir
 from torchpack.utils.config import configs
@@ -20,7 +20,6 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("config", metavar="FILE", help="config file")
-    parser.add_argument("checkpoint", help="checkpoint file")
     parser.add_argument("--run-dir", metavar="DIR", help="run directory")
     args, opts = parser.parse_known_args()
 
@@ -68,7 +67,7 @@ def main():
     model.init_weights()
     # random_fuser = model.fuser.state_dict().copy()
     # model.requires_grad = False
-    load_checkpoint(model, args.checkpoint)
+    # load_checkpoint(model, args.checkpoint)
     # reset fuser
     # model.fuser.load_state_dict(random_fuser, strict=False)
     model.encoders.camera.requires_grad = False

@@ -49,7 +49,12 @@ class CBGSDataset:
         }
 
         sample_indices = []
-
+        # sample_dropout = 0.7
+        # frac = 1.0 / len(self.CLASSES)
+        # ratios = [frac / v for v in class_distribution.values()]
+        # print("ratios are:", ratios)
+        # ratios = [(frac / v) * (1 - sample_dropout) for v in class_distribution.values()]
+        # print("ratiosx are:", ratios)
         frac = 1.0 / len(self.CLASSES)
         ratios = [frac / v for v in class_distribution.values()]
         for cls_inds, ratio in zip(list(class_sample_idxs.values()), ratios):

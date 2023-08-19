@@ -13,7 +13,7 @@ log_config:
     -
       type: TensorboardLoggerHook
 
-load_from: null
+load_from: idp_pretrained/det_model_no_fuser_decoder_head.pth
 resume_from: null
 
 cudnn_benchmark: false
