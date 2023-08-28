@@ -6,7 +6,7 @@ import numpy as np
 from nuscenes.map_expansion.map_api import NuScenesMap
 from nuscenes.map_expansion.map_api import locations as LOCATIONS
 from PIL import Image
-
+# import cv2
 
 from mmdet3d.core.points import BasePoints, get_points_type
 from mmdet.datasets.builder import PIPELINES
@@ -270,7 +270,7 @@ class LoadBEVSegmentation:
         rotation = lidar2global[:3, :3]
         v = np.dot(rotation, np.array([1, 0, 0]))
         yaw = np.arctan2(v[1], v[0])
-        patch_angle = yaw / np.pi * 180# - 90# + 180
+        patch_angle = yaw / np.pi * 180 - 90# + 180
 
         mappings = {}
         for name in self.classes:
@@ -303,7 +303,7 @@ class LoadBEVSegmentation:
             for layer_name in mappings[name]:
                 index = layer_names.index(layer_name)
                 labels[k, masks[index]] = 1
-
+        # print("shape of bevx",labels.shape)
         data["gt_masks_bev"] = labels
         return data
 
@@ -377,6 +377,41 @@ class LoadMap:
                 index = layer_names.index(layer_name)
                 labels[k, masks[index]] = 1
         data["feature_map"] = labels
+        # map_classes = [
+        #     "drivable_area",
+        #     # - drivable_area*
+        #     "ped_crossing",
+        #     "walkway",
+        #     "stop_line",
+        #     "carpark_area",
+        #     # - road_divider
+        #     # - lane_divider
+        #     "divider"]
+        # MAP_PALETTE = {
+        #     "drivable_area": (166, 206, 227),
+        #     "road_segment": (31, 120, 180),
+        #     "road_block": (178, 223, 138),
+        #     "lane": (51, 160, 44),
+        #     "ped_crossing": (251, 154, 153),
+        #     "walkway": (227, 26, 28),
+        #     "stop_line": (253, 191, 111),
+        #     "carpark_area": (255, 127, 0),
+        #     "road_divider": (202, 178, 214),
+        #     "lane_divider": (106, 61, 154),
+        #     "divider": (106, 61, 154),
+        # }
+        # canvas = np.zeros((*masks.shape[-2:], 3), dtype=np.uint8)
+        # canvas[:] = labels
+
+        # for k, name in enumerate(map_classes):
+        #     if name in MAP_PALETTE:
+        #         canvas[masks[k], :] = MAP_PALETTE[name]
+        # canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
+        # fpath = os.path.join("test_vis", "map", "abc.png")#f"{abc}.png")
+        # mmcv.mkdir_or_exist(os.path.dirname(fpath))
+        # mmcv.imwrite(canvas, fpath)
+        # print("shape of map", labels.shape)
+        # print("identical in loading:", np.allclose(data["gt_masks_bev"], labels))
         return data
 
 @PIPELINES.register_module()

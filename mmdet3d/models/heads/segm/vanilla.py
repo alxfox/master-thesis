@@ -3,7 +3,11 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import torch
 from torch import nn
 from torch.nn import functional as F
-
+# import cv2
+# import mmcv
+# import sys
+# import os
+# import numpy as np
 from mmdet3d.models.builder import HEADS
 
 __all__ = ["BEVSegmentationHead"]
@@ -120,7 +124,19 @@ class BEVSegmentationHead(nn.Module):
         if isinstance(x, (list, tuple)):
             x = x[0]
 
+        # print("xx")
+        # canvas = np.transpose(x[0,:3].detach().cpu().numpy(),(1,2,0))*255
         x = self.transform(x)
+        # print("xxy")
+        # canvas1 = np.transpose(x[0,:3].detach().cpu().numpy(),(1,2,0))*255
+        # canvas2 = np.transpose(target[0,:3].detach().cpu().numpy(),(1,2,0))*255
+        # fpath = "test_vis/e.png"
+        # fpath1 = "test_vis/f.png"
+        # fpath2 = "test_vis/g.png"
+        # mmcv.mkdir_or_exist(os.path.dirname(fpath))
+        # mmcv.imwrite(canvas, fpath)
+        # mmcv.imwrite(canvas1, fpath1)
+        # mmcv.imwrite(canvas2, fpath2)
         x = self.classifier(x)
 
         if self.training:

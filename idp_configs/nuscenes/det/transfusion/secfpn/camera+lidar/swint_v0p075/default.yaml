@@ -7,6 +7,7 @@ model:
   encoders:
     map:
       encoder:
+        type: conv
         channels: [12,18,24,32]
     camera:
       backbone:

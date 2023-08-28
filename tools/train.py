@@ -70,8 +70,11 @@ def main():
     # load_checkpoint(model, args.checkpoint)
     # reset fuser
     # model.fuser.load_state_dict(random_fuser, strict=False)
-    model.encoders.camera.requires_grad = False
-    model.encoders.lidar.requires_grad = False
+    try:
+        model.encoders.camera.requires_grad = False
+        model.encoders.lidar.requires_grad = False
+    except:
+        print("could not disable gradients for camera/lidar encoder")
     # model.decoder.requires_grad = False
     # model.heads.requires_grad = False
     if cfg.get("sync_bn", None):

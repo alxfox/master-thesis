@@ -4,7 +4,9 @@ import torch
 from mmcv.runner import auto_fp16, force_fp32
 from torch import nn
 from torch.nn import functional as F
-
+# from mmdet3d.core.utils import visualize_camera, visualize_lidar, visualize_map
+# import numpy as np
+# import mmcv
 from mmdet3d.models.builder import (
     build_backbone,
     build_fuser,
@@ -56,17 +58,27 @@ class BEVFusion(Base3DFusionModel):
         # TODO
         if encoders.get("map") is not None:
             prev = 6
-            modules = []
-            conv_channels = encoders["map"]["encoder"]["channels"]
-            for n in conv_channels:
-                modules.append(nn.Conv2d(prev, n, 3, padding=1))
-                modules.append(nn.ReLU())
-                prev = n
-            self.encoders["map"] = nn.ModuleDict(
-                {
-                    "encoder": nn.Sequential(*modules)
-                }
-            )
+            if(encoders["map"]["encoder"]["type"]=="conv"):
+                modules = []
+                conv_channels = encoders["map"]["encoder"]["channels"]
+                for n in conv_channels:
+                    modules.append(nn.Conv2d(prev, n, 3, padding=1))
+                    modules.append(nn.ReLU())
+                    prev = n
+                self.encoders["map"] = nn.ModuleDict(
+                    {
+                        "encoder": nn.Sequential(*modules)
+                    }
+                )
+            elif(encoders["map"]["encoder"]["type"]=="resnet18"):
+                conv_channels = encoders["map"]["encoder"]["channels"]
+                modules = [nn.Conv2d(prev, 3, 1), nn.ReLU(), 
+                           torch.hub.load("pytorch/vision:v0.10.0", "resnet18", pretrained=False)]
+                self.encoders["map"] = nn.ModuleDict(
+                    {
+                        "encoder": nn.Sequential(*modules),
+                    }
+                )
 
         if fuser is not None:
             self.fuser = build_fuser(fuser)
@@ -260,8 +272,20 @@ class BEVFusion(Base3DFusionModel):
                 )
             elif sensor == "lidar":
                 feature = self.extract_lidar_features(points)
+                # print(points[0].detach().cpu().numpy().shape)
+                # visualize_lidar("test_vis/l.png", points[0].detach().cpu().numpy())
+
+                # print("z",feature.shape)
             elif sensor == "map":
+                # canvas1 = np.transpose(gt_masks_bev[0,:3].detach().cpu().numpy(),(1,2,0))*255
+                # canvas2 = np.transpose(feature_map[0,:3].detach().cpu().numpy(),(1,2,0))*255
+                # fpath1 = "test_vis/f.png"
+                # fpath2 = "test_vis/g.png"
+                # mmcv.imwrite(canvas1, fpath1)
+                # mmcv.imwrite(canvas2, fpath2)
+                # print("x",gt_masks_bev.shape)
                 feature = self.extract_map_features(feature_map)
+                # print("y",feature.shape)
             else:
                 raise ValueError(f"unsupported sensor: {sensor}")
             features.append(feature)
@@ -288,6 +312,9 @@ class BEVFusion(Base3DFusionModel):
                     pred_dict = head(x, metas)
                     losses = head.loss(gt_bboxes_3d, gt_labels_3d, pred_dict)
                 elif type == "map":
+                    # if not torch.allclose(gt_masks_bev.float(),feature_map.float()):
+                    #     print("was not equal!!!")
+                        
                     losses = head(x, gt_masks_bev)
                 else:
                     raise ValueError(f"unsupported head: {type}")
