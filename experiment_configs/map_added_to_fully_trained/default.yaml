@@ -1,0 +1,28 @@
+seed: 0
+deterministic: false
+
+checkpoint_config:
+  interval: 1
+  max_keep_ckpts: 1
+
+log_config:
+  interval: 50
+  hooks:
+    -
+      type: TextLoggerHook
+    -
+      type: TensorboardLoggerHook
+
+# load_from: null # pretrained/bevfusion-seg.pth # idp_pretrained/det_model_no_fuser_decoder_head.pth
+load_from: idp_pretrained/det_model_no_fuser.pth
+resume_from: null
+
+cudnn_benchmark: false
+fp16:
+  loss_scale: 
+    growth_interval: 2000
+
+max_epochs: 20
+runner:
+  type: CustomEpochBasedRunner
+  max_epochs: ${max_epochs}
