@@ -14,7 +14,7 @@ log_config:
       type: TensorboardLoggerHook
 
 # load_from: null # pretrained/bevfusion-seg.pth # idp_pretrained/det_model_no_fuser_decoder_head.pth
-load_from: idp_pretrained/det_centerhead_no_fuser_decoder_head.pth
+load_from: idp_pretrained/det_centerhead_cam_map_no_fuser_decoder_head.pth
 resume_from: null
 
 cudnn_benchmark: false
