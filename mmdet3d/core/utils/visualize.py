@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 
 from ..bbox import LiDARInstance3DBoxes
 
-__all__ = ["visualize_camera", "visualize_lidar", "visualize_map"]
+__all__ = ["visualize_camera", "visualize_lidar", "visualize_map", "visualize_feature_map"]
 
 
 OBJECT_PALETTE = {
@@ -181,3 +181,25 @@ def visualize_map(
 
     mmcv.mkdir_or_exist(os.path.dirname(fpath))
     mmcv.imwrite(canvas, fpath)
+
+def visualize_feature_map(
+    fpath: str,
+    masks: np.ndarray,
+    *,
+    classes: List[str],
+    background: Tuple[int, int, int] = (240, 240, 240),
+) -> None:
+    # assert masks.dtype == np.bool, masks.dtype
+    for i in range(32):
+        canvas = np.zeros((*masks.shape[-2:], 3), dtype=np.uint8)
+        canvas[:] = (255,255,255)
+        canvas = np.clip((canvas * np.expand_dims(masks[i], 2)), 0, 255).astype(np.uint8)
+        # canvas[masks[i], :] = (0, 0, 0)
+        print("cc", canvas.shape)
+        print("mm", masks[i].mean(), masks[i].max())
+        # canvas = np.clip(([[(255, 255, 255)]] * np.expand_dims(masks[i],2)),0,1).astype(np.uint)
+        # print(canvas.shape)
+        canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
+
+        mmcv.mkdir_or_exist(os.path.dirname(fpath))
+        mmcv.imwrite(canvas, fpath + "_" + str(i)+".png")
