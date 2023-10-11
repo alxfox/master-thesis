@@ -70,13 +70,10 @@ class BEVFusion(Base3DFusionModel):
                         "encoder": nn.Sequential(*modules)
                     }
                 )
-            elif(encoders["map"]["encoder"]["type"]=="resnet18"):
-                conv_channels = encoders["map"]["encoder"]["channels"]
-                modules = [nn.Conv2d(prev, 3, 1), nn.ReLU(), 
-                           torch.hub.load("pytorch/vision:v0.10.0", "resnet18", pretrained=False)]
+            elif(encoders["map"]["encoder"]["type"]=="GeneralizedResNet"):
                 self.encoders["map"] = nn.ModuleDict(
                     {
-                        "encoder": nn.Sequential(*modules),
+                        "encoder": build_backbone(encoders["map"]["encoder"]),
                     }
                 )
 
@@ -126,30 +123,30 @@ class BEVFusion(Base3DFusionModel):
     ) -> torch.Tensor:
         B, N, C, H, W = x.size()
         x = x.view(B * N, C, H, W)
-        with torch.no_grad():
-            x = self.encoders["camera"]["backbone"](x)
-            x = self.encoders["camera"]["neck"](x)
+        # with torch.no_grad():
+        x = self.encoders["camera"]["backbone"](x)
+        x = self.encoders["camera"]["neck"](x)
 
-            if not isinstance(x, torch.Tensor):
-                x = x[0]
+        if not isinstance(x, torch.Tensor):
+            x = x[0]
 
-            BN, C, H, W = x.size()
-            x = x.view(B, int(BN / B), C, H, W)
+        BN, C, H, W = x.size()
+        x = x.view(B, int(BN / B), C, H, W)
 
-            x = self.encoders["camera"]["vtransform"](
-                x,
-                points,
-                camera2ego,
-                lidar2ego,
-                lidar2camera,
-                lidar2image,
-                camera_intrinsics,
-                camera2lidar,
-                img_aug_matrix,
-                lidar_aug_matrix,
-                img_metas,
-            )
-            return x
+        x = self.encoders["camera"]["vtransform"](
+            x,
+            points,
+            camera2ego,
+            lidar2ego,
+            lidar2camera,
+            lidar2image,
+            camera_intrinsics,
+            camera2lidar,
+            img_aug_matrix,
+            lidar_aug_matrix,
+            img_metas,
+        )
+        return x
 
     def extract_lidar_features(self, x) -> torch.Tensor:
         feats, coords, sizes = self.voxelize(x)
@@ -295,6 +292,10 @@ class BEVFusion(Base3DFusionModel):
             features = features[::-1]
 
         if self.fuser is not None:
+            # print(features[1][0].shape, features[1][-1].shape)
+            if(True):
+                # TODO: hacky way of making map output work for res blocks
+                features[1] = features[1][-1]
             x = self.fuser(features)
         else:
             assert len(features) == 1, features
