@@ -1,7 +1,7 @@
 # voxel_size: [0.075, 0.075, 0.2]
 # point_cloud_range: [-54.0, -54.0, -5.0, 54.0, 54.0, 3.0]
-map_resolution_x: [-50.0, 50.0, 128]
-map_resolution_y: [-50.0, 50.0, 128]
+map_resolution_x: [-51.2, 51.2, 128]
+map_resolution_y: [-51.2, 51.2, 128]
 
 model:
   encoders:
