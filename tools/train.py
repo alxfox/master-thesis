@@ -3,17 +3,19 @@ import copy
 import os
 import random
 import time
+
 import numpy as np
 import torch
 from mmcv import Config
-# from mmcv.runner import load_checkpoint
 from torchpack import distributed as dist
 from torchpack.environ import auto_set_run_dir, set_run_dir
 from torchpack.utils.config import configs
+
 from mmdet3d.apis import train_model
 from mmdet3d.datasets import build_dataset
 from mmdet3d.models import build_model
 from mmdet3d.utils import get_root_logger, convert_sync_batchnorm, recursive_eval
+
 
 def main():
     dist.init()
@@ -70,11 +72,11 @@ def main():
     # load_checkpoint(model, args.checkpoint)
     # reset fuser
     # model.fuser.load_state_dict(random_fuser, strict=False)
-    try:
-        model.encoders.camera.requires_grad = False
-        model.encoders.lidar.requires_grad = False
-    except:
-        print("could not disable gradients for camera/lidar encoder")
+    # try:
+    #     model.encoders.camera.requires_grad = False
+    #     model.encoders.lidar.requires_grad = False
+    # except:
+    #     print("could not disable gradients for camera/lidar encoder")
     # model.decoder.requires_grad = False
     # model.heads.requires_grad = False
     if cfg.get("sync_bn", None):

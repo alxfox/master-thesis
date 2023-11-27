@@ -1,6 +1,6 @@
 dataset_type: NuScenesDataset
 dataset_root: data/nuscenes/
-dataset_info_root: data/nuscenes_info/
+dataset_info_root: data/nuscenes/
 gt_paste_stop_epoch: -1
 reduce_beams: 32
 load_dim: 5
@@ -50,7 +50,7 @@ input_modality:
   use_lidar: true
   use_camera: true
   use_radar: false
-  use_map: true
+  use_map: false
   use_external: false
 
 train_pipeline:

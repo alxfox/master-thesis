@@ -151,8 +151,8 @@ class BEVFusion(Base3DFusionModel):
     def extract_lidar_features(self, x) -> torch.Tensor:
         feats, coords, sizes = self.voxelize(x)
         batch_size = coords[-1, 0] + 1
-        with torch.no_grad():
-            x = self.encoders["lidar"]["backbone"](feats, coords, batch_size, sizes=sizes)
+        # with torch.no_grad():
+        x = self.encoders["lidar"]["backbone"](feats, coords, batch_size, sizes=sizes)
         return x
     #TODO
     def extract_map_features(self, x) -> torch.Tensor:
@@ -281,7 +281,7 @@ class BEVFusion(Base3DFusionModel):
                 # mmcv.imwrite(canvas1, fpath1)
                 # mmcv.imwrite(canvas2, fpath2)
                 # print("x",gt_masks_bev.shape)
-                feature = self.extract_map_features(feature_map)
+                feature = self.extract_map_features(feature_map)[-1] # only use last element if resnet is used
                 # print("y",feature.shape)
             else:
                 raise ValueError(f"unsupported sensor: {sensor}")
@@ -293,9 +293,9 @@ class BEVFusion(Base3DFusionModel):
 
         if self.fuser is not None:
             # print(features[1][0].shape, features[1][-1].shape)
-            if(True):
-                # TODO: hacky way of making map output work for res blocks
-                features[1] = features[1][-1]
+            # if(True):
+            #     # TODO: hacky way of making map output work for res blocks
+            #     features[1] = features[1][-1]
             x = self.fuser(features)
         else:
             assert len(features) == 1, features

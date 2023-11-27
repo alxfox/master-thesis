@@ -10,12 +10,14 @@ from mmcv.parallel import MMDistributedDataParallel
 from mmcv.runner import load_checkpoint
 from torchpack import distributed as dist
 from torchpack.utils.config import configs
+
 from tqdm import tqdm
 import torchviz
 from mmdet3d.core import LiDARInstance3DBoxes
 from mmdet3d.core.utils import visualize_camera, visualize_lidar, visualize_map, visualize_feature_map
 from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet3d.models import build_model
+
 import sys
 
 def recursive_eval(obj, globals=None):
@@ -171,6 +173,7 @@ def main() -> None:
             )
 
         if masks is not None:
+            # visualize_map(
             visualize_feature_map(
                 os.path.join(args.out_dir, "map", f"{name}.png"),
                 masks,
