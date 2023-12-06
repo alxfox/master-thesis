@@ -259,7 +259,7 @@ test_pipeline:
       - lidar_aug_matrix
 
 data:
-  samples_per_gpu: 8
+  samples_per_gpu: 16
   workers_per_gpu: 8
   train:
     type: CBGSDataset

@@ -5,7 +5,7 @@ import warnings
 
 import mmcv
 import torch
-from torchpack.utils.config import configs
+from torchpack.utils.config import Config as Conf
 from torchpack import distributed as dist
 from mmcv import Config, DictAction
 from mmcv.cnn import fuse_conv_bn
@@ -21,10 +21,12 @@ from nuscenes.utils.data_classes import RadarPointCloud
 
 def parse_args():
     parser = argparse.ArgumentParser(description="MMDet test (and eval) a model")
-    parser.add_argument("old_config", help="old config file path")
-    parser.add_argument("new_config", help="new config file path")
-    parser.add_argument("checkpoint", help="checkpoint file")
-    parser.add_argument("--out", help="output result file in pickle format")
+    parser.add_argument("new_config", help="new config filepath")
+    parser.add_argument("out", help="output result file in pickle format")
+    parser.add_argument("--lidar_config", help="lidar encoder config filepath")
+    parser.add_argument("--lidar_checkpoint", help="lidar encoder checkpoint filepath")
+    parser.add_argument("--camera_config", help="camera encoder config filepath")
+    parser.add_argument("--camera_checkpoint", help="camera encoder checkpoint filepath")
     parser.add_argument(
         "--fuse-conv-bn",
         action="store_true",
@@ -113,19 +115,34 @@ def parse_args():
 
 def main():
     args = parse_args()
-
     torch.backends.cudnn.benchmark = True
     torch.cuda.set_device(dist.local_rank())
-    configs.load(args.old_config, recursive=True)
-    cfg_old = Config(recursive_eval(configs), filename=args.old_config)
-    model_old = build_model(cfg_old.model)
-
-    configs.load(args.new_config, recursive=True)
-    cfg_new = Config(recursive_eval(configs), filename=args.new_config)
+    # Create new base model from the config
+    cfgs = Conf()
+    cfgs.load(args.new_config, recursive=True)
+    cfg_new = Config(recursive_eval(cfgs), filename=args.new_config)
     model_new = build_model(cfg_new.model)
     model_new.init_weights()
-    load_checkpoint(model_old, args.checkpoint, map_location="cpu")
-    model_new.encoders.camera.load_state_dict(model_old.encoders.camera.state_dict())
+
+    if args.lidar_config != None and args.lidar_checkpoint != None:
+        print("loading lidar encoder weights...")
+        cfgs = Conf()
+        cfgs.load(args.lidar_config, recursive=True)
+        cfg_lidar = Config(recursive_eval(cfgs), filename=args.lidar_config)
+    #     model_lidar = build_model(cfg_lidar.model)
+    #     load_checkpoint(model_lidar, args.lidar_checkpoint, map_location="cpu")
+    #     model_new.encoders.lidar.load_state_dict(model_lidar.encoders.lidar.state_dict())
+    #     print("transferred lidar weights to new model")
+
+    if args.camera_config != None and args.camera_checkpoint != None:
+        print("loading camera encoder weights...")
+        cfgs = Conf()
+        cfgs.load(args.camera_config, recursive=True)
+        cfg_camera = Config(recursive_eval(cfgs), filename=args.camera_config)
+        model_camera = build_model(cfg_camera.model)
+        load_checkpoint(model_camera, args.camera_checkpoint, map_location="cpu")
+        model_new.encoders.camera.load_state_dict(model_camera.encoders.camera.state_dict())
+        print("transferred camera weights to new model")
     # model_new.encoders.lidar.load_state_dict(model_old.encoders.lidar.state_dict())
     # model_new.decoder.load_state_dict(model_old.decoder.state_dict())
     # model_new.heads.load_state_dict(model_old.heads.state_dict())
@@ -133,8 +150,7 @@ def main():
     # print(model_new.fuser.weight.data)
     # print(torch.allclose(model_old.fuser.weight.data, model_new.fuser.weight.data), torch.allclose(model_old.fuser.weight.data, model_old.fuser.weight.data))
     # print(model_new)
-    
-    save_checkpoint(model_new, "idp_pretrained/det_centerhead_cam_map_no_fuser_decoder_head.pth")
+    # save_checkpoint(model_new, args.out)
 
 if __name__ == "__main__":
     main()
