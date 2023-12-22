@@ -4,4 +4,4 @@ model:
     in_channels: [80, 256]
     out_channels: 256
 
-load_from: data/runs/lidar_baseline/run-43ad04d2-092aaf62/epoch_20.pth
+load_from: data/runs/fusion_baseline_centerhead/fusion_baseline_centerhead_prep.pth

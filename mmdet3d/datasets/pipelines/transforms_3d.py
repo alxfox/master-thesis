@@ -119,6 +119,79 @@ class ImageAug3D:
         data["img_aug_matrix"] = transforms
         return data
 
+@PIPELINES.register_module()
+class DropObjects:
+    def __init__(self, rate=0.0):
+        pass
+    def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        return data
+
+@PIPELINES.register_module()
+class LimitFoV:
+    def __init__(self, rate=0.0, angle=360, direction=0, random_direction=False):
+        self.apply_limit = rate > 0.0 and angle < 360
+        if self.apply_limit is not None:
+            if random_direction:
+                direction = np.random.randint(360)
+            self.point_cloud_angle_range = [direction - angle / 2, direction + angle / 2]
+            for i in range(2):
+                if self.point_cloud_angle_range[i] > 180:
+                    self.point_cloud_angle_range[i] = self.point_cloud_angle_range[i] - 360
+                if self.point_cloud_angle_range[i] < -180:
+                    self.point_cloud_angle_range[i] = self.point_cloud_angle_range[i] + 360
+            # print(point_cloud_angle_range)
+
+    def filter_points_by_angle(self, points):
+        if isinstance(points, np.ndarray):
+            points_numpy = points
+        elif isinstance(points, BasePoints):
+            points_numpy = points.tensor.numpy()
+        else:
+            raise NotImplementedError
+        # print(points_numpy[points_numpy[:,1]>0])
+        pts_phi = (np.arctan(points_numpy[:, 0] / points_numpy[:, 1]) + (points_numpy[:, 1] < 0) * np.pi + np.pi * 2) % (np.pi * 2) 
+
+        pts_phi[pts_phi>np.pi] -= np.pi * 2
+        pts_phi = pts_phi/np.pi*180
+
+        assert np.all(-180 <= pts_phi) and np.all(pts_phi <= 180)
+
+        filt = np.logical_and(pts_phi>=self.point_cloud_angle_range[0], pts_phi<=self.point_cloud_angle_range[1])
+        # points_numpy = points_numpy[filt]
+        # print(points_numpy[points_numpy[:,1]>0])
+
+        # import matplotlib.pyplot as plt
+        # from mpl_toolkits.mplot3d import Axes3D
+        # fig = plt.figure(figsize=(10, 7.5))
+        # ax = Axes3D(fig)
+        # ax.view_init(30, 150)
+        # ax.scatter(xs=[-54, 54], ys=[-54, 54], zs=[-10, 10], c='white')
+        # ax.scatter(xs=points_numpy[:, 0], ys=points_numpy[:, 1], zs=points_numpy[:, 2], c='blue', s=2)
+        # ax.set_xlabel('x')
+        # ax.set_ylabel('y')
+        # ax.set_zlabel('z')
+        # plt.gca().set_box_aspect((54, 54, 10))
+        # plt.savefig('/data2/linzhiwei/project/TransFusion_SST/tmp/before.png')
+
+        # fig = plt.figure(figsize=(10, 7.5))
+        # points_numpy = points_numpy[filt]
+        # ax = Axes3D(fig)
+        # ax.view_init(30, 150)
+        # ax.scatter(xs=[-54, 54], ys=[-54, 54], zs=[-10, 10], c='white')
+        # ax.scatter(xs=points_numpy[:, 0], ys=points_numpy[:, 1], zs=points_numpy[:, 2], c='blue', s=2)
+        # ax.set_xlabel('x')
+        # ax.set_ylabel('y')
+        # ax.set_zlabel('z')
+        # plt.gca().set_box_aspect((54, 54, 10))
+        # plt.savefig('/data2/linzhiwei/project/TransFusion_SST/tmp/after.png')
+
+        # print(a)
+        return points[filt]
+    def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        if(self.apply_limit and "points" in data):
+            data["points"] = self.filter_points_by_angle(data["points"])
+        return data
+
 
 @PIPELINES.register_module()
 class GlobalRotScaleTrans:

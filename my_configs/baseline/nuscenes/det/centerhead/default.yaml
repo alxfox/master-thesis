@@ -2,7 +2,7 @@ model:
   heads:
     object:
       type: CenterHead
-      in_channels: null
+      in_channels: 256
       train_cfg:
         point_cloud_range: ${point_cloud_range}
         grid_size: [1024, 1024, 1]

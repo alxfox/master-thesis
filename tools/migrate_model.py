@@ -129,10 +129,10 @@ def main():
         cfgs = Conf()
         cfgs.load(args.lidar_config, recursive=True)
         cfg_lidar = Config(recursive_eval(cfgs), filename=args.lidar_config)
-    #     model_lidar = build_model(cfg_lidar.model)
-    #     load_checkpoint(model_lidar, args.lidar_checkpoint, map_location="cpu")
-    #     model_new.encoders.lidar.load_state_dict(model_lidar.encoders.lidar.state_dict())
-    #     print("transferred lidar weights to new model")
+        model_lidar = build_model(cfg_lidar.model)
+        load_checkpoint(model_lidar, args.lidar_checkpoint, map_location="cpu")
+        model_new.encoders.lidar.load_state_dict(model_lidar.encoders.lidar.state_dict())
+        print("transferred lidar weights to new model")
 
     if args.camera_config != None and args.camera_checkpoint != None:
         print("loading camera encoder weights...")
@@ -142,6 +142,7 @@ def main():
         model_camera = build_model(cfg_camera.model)
         load_checkpoint(model_camera, args.camera_checkpoint, map_location="cpu")
         model_new.encoders.camera.load_state_dict(model_camera.encoders.camera.state_dict())
+        # model_new.decoder.load_state_dict(model_camera.decoder.state_dict())
         print("transferred camera weights to new model")
     # model_new.encoders.lidar.load_state_dict(model_old.encoders.lidar.state_dict())
     # model_new.decoder.load_state_dict(model_old.decoder.state_dict())
@@ -150,7 +151,7 @@ def main():
     # print(model_new.fuser.weight.data)
     # print(torch.allclose(model_old.fuser.weight.data, model_new.fuser.weight.data), torch.allclose(model_old.fuser.weight.data, model_old.fuser.weight.data))
     # print(model_new)
-    # save_checkpoint(model_new, args.out)
+    save_checkpoint(model_new, args.out)
 
 if __name__ == "__main__":
     main()

@@ -31,9 +31,11 @@ class BEVFusion(Base3DFusionModel):
         fuser: Dict[str, Any],
         decoder: Dict[str, Any],
         heads: Dict[str, Any],
+        freeze_state={ "lidar": False, "camera": False },
         **kwargs,
     ) -> None:
         super().__init__()
+        self.freeze_state = freeze_state
         self.encoders = nn.ModuleDict()
         if encoders.get("camera") is not None:
             self.encoders["camera"] = nn.ModuleDict(
@@ -254,21 +256,23 @@ class BEVFusion(Base3DFusionModel):
             self.encoders if self.training else list(self.encoders.keys())[::-1]
         ):
             if sensor == "camera":
-                feature = self.extract_camera_features(
-                    img,
-                    points,
-                    camera2ego,
-                    lidar2ego,
-                    lidar2camera,
-                    lidar2image,
-                    camera_intrinsics,
-                    camera2lidar,
-                    img_aug_matrix,
-                    lidar_aug_matrix,
-                    metas,
-                )
+                with torch.set_grad_enabled(not self.freeze_state.get("camera")):
+                    feature = self.extract_camera_features(
+                        img,
+                        points,
+                        camera2ego,
+                        lidar2ego,
+                        lidar2camera,
+                        lidar2image,
+                        camera_intrinsics,
+                        camera2lidar,
+                        img_aug_matrix,
+                        lidar_aug_matrix,
+                        metas,
+                    )
             elif sensor == "lidar":
-                feature = self.extract_lidar_features(points)
+                with torch.set_grad_enabled(not self.freeze_state.get("lidar")):
+                    feature = self.extract_lidar_features(points)
                 # print(points[0].detach().cpu().numpy().shape)
                 # visualize_lidar("test_vis/l.png", points[0].detach().cpu().numpy())
 

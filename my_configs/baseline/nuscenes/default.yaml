@@ -7,6 +7,15 @@ load_dim: 5
 use_dim: 5
 load_augmented: null
 
+#lidar augmentations
+fov: 
+  rate: 0.0
+  angle: 360 # angle of visible lidar points
+  direction: 0 # center of visible cone
+  random_direction: false # whether to randomize the direction of the fov
+drop_objects:
+  rate: 0.0
+
 point_cloud_range: [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
 voxel_size: [0.1, 0.1, 0.2]
 image_size: [256, 704]
@@ -116,6 +125,15 @@ train_pipeline:
         load_dim: ${load_dim}
         use_dim: ${use_dim}
         reduce_beams: ${reduce_beams}
+  -
+    type: LimitFoV
+    rate: ${fov.rate}
+    angle: ${fov.angle} # angle of visible 
+    direction: ${fov.direction} # center of visible cone
+    random_direction: ${fov.random_direction} # whether to randomize the direction of the fov
+  -
+    type: DropObjects
+    rate: ${drop_objects.rate}
   -
     type: ImageAug3D
     final_dim: ${image_size}

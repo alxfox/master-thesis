@@ -1,5 +1,9 @@
 seed: 0
 deterministic: false
+model:
+  freeze_state:
+    lidar: false
+    camera: false
 
 checkpoint_config:
   interval: 1

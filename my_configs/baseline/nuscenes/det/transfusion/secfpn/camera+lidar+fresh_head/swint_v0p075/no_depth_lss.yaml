@@ -1,0 +1,15 @@
+
+find_unused_parameters: true
+
+model:
+  freeze_state:
+    lidar: true
+    camera: true
+  fuser:
+    type: ConvFuser
+    in_channels: [80, 256]
+    out_channels: 256
+
+
+# load_from: data/runs/fusion_no_depth_lss/lidar_pretrained__no_depth_lss.pth
+load_from: data/runs/fusion_baseline/lidar_camera_pretrained.pth
