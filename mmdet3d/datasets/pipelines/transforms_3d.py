@@ -120,6 +120,32 @@ class ImageAug3D:
         return data
 
 @PIPELINES.register_module()
+class SensorBlackout:
+    def __init__(self, lidar=False, camera=False, rate=1.0):
+        self.camera = camera
+        self.lidar = lidar
+        self.rate = rate
+
+    def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        if self.camera:
+            if random.uniform(0,1) < self.rate:
+                for i in range(len(data["img"])):
+                    # print(data["img"][i].shape)
+                    data["img"][i][:] = 0
+        if self.lidar:
+            # print(data["points"].shape)
+            # print(data["points"].tensor.shape)
+            if random.uniform(0,1) < self.rate:
+                data["points"] = data["points"][:1]
+                # print("blacking out lidar " + str(data["points"].tensor.shape))
+            # else:
+            #     print("not blacking out lidar " + str(data["points"].tensor.shape))
+            # data["points"].tensor *= 0
+            # print(data["points"].shape)
+            
+        return data
+
+@PIPELINES.register_module()
 class DropObjects:
     def __init__(self, rate=0.0):
         pass

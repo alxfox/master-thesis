@@ -2,6 +2,7 @@ import argparse
 import copy
 import os
 import warnings
+import sys
 
 import mmcv
 import torch
@@ -24,6 +25,7 @@ def parse_args():
     parser.add_argument("config", help="test config file path")
     parser.add_argument("checkpoint", help="checkpoint file")
     parser.add_argument("--out", help="output result file in pickle format")
+    parser.add_argument("--out_dir", help="output folder for evaluation results (mAP, NDS, ...)")
     parser.add_argument(
         "--fuse-conv-bn",
         action="store_true",
@@ -43,6 +45,13 @@ def parse_args():
         nargs="+",
         help='evaluation metrics, which depends on the dataset, e.g., "bbox",'
         ' "segm", "proposal" for COCO, and "mAP", "recall" for PASCAL VOC',
+    )
+    parser.add_argument(
+        "--blackout",
+        type=str,
+        nargs="+",
+        choices=["lidar", "camera"],
+        help="whether to black out one or more of the sensor inputs",
     )
     parser.add_argument("--show", action="store_true", help="show results")
     parser.add_argument("--show-dir", help="directory where results will be saved")
@@ -131,8 +140,13 @@ def main():
 
     configs.load(args.config, recursive=True)
     cfg = Config(recursive_eval(configs), filename=args.config)
-    print(cfg)
 
+    if args.blackout is not None:
+        print("WARNING: The following sensors will be blacked out during the test:", args.blackout)
+        # print(cfg.data.test.pipeline)
+        cfg.data.test.pipeline.insert(-2, {"type": "SensorBlackout", "camera":  "camera" in args.blackout, "lidar": "lidar" in args.blackout})
+        # print(cfg.data.test.pipeline)
+    # sys.exit()
     if args.cfg_options is not None:
         cfg.merge_from_dict(args.cfg_options)
     # set cudnn_benchmark
@@ -223,7 +237,22 @@ def main():
             ]:
                 eval_kwargs.pop(key, None)
             eval_kwargs.update(dict(metric=args.eval, **kwargs))
-            print(dataset.evaluate(outputs, **eval_kwargs))
+            if args.blackout is not None:
+                print("WARNING: The following sensors were blacked out during this test:", args.blackout)
+            out = dataset.evaluate(outputs, **eval_kwargs)
+            print("out:", out)
+            # if args.out_dir:
+            #     out_path = args.out_dir
+            #     if args.blackout is not None:
+            #         if "camera" in args.blackout and "lidar" in args.blackout:
+
+            #         elif "camera" in args.blackout:
+            #         elif "lidar" in args.blackout:
+            #     else:
+            #     print(f"\nwriting evaluation results to {args.out_dir}")
+            #     mmcv.dump(outputs, args.out_dir)
+
+
 
 
 if __name__ == "__main__":

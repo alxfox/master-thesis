@@ -407,6 +407,7 @@ class NuScenesDataset(Custom3DDataset):
         logger=None,
         metric="bbox",
         result_name="pts_bbox",
+        blackout_sensors=[]
     ):
         """Evaluation for a single model in nuScenes protocol.
 
@@ -443,19 +444,26 @@ class NuScenesDataset(Custom3DDataset):
         # record metrics
         metrics = mmcv.load(osp.join(output_dir, "metrics_summary.json"))
         detail = dict()
-        for name in self.CLASSES:
-            for k, v in metrics["label_aps"][name].items():
-                val = float("{:.4f}".format(v))
-                detail["object/{}_ap_dist_{}".format(name, k)] = val
-            for k, v in metrics["label_tp_errors"][name].items():
-                val = float("{:.4f}".format(v))
-                detail["object/{}_{}".format(name, k)] = val
-            for k, v in metrics["tp_errors"].items():
-                val = float("{:.4f}".format(v))
-                detail["object/{}".format(self.ErrNameMapping[k])] = val
-
-        detail["object/nds"] = metrics["nd_score"]
-        detail["object/map"] = metrics["mean_ap"]
+        score_suffix = ""
+        if len(blackout_sensors) == 0:
+            for name in self.CLASSES:
+                for k, v in metrics["label_aps"][name].items():
+                    val = float("{:.4f}".format(v))
+                    detail["object/{}_ap_dist_{}".format(name, k)] = val
+                for k, v in metrics["label_tp_errors"][name].items():
+                    val = float("{:.4f}".format(v))
+                    detail["object/{}_{}".format(name, k)] = val
+                for k, v in metrics["tp_errors"].items():
+                    val = float("{:.4f}".format(v))
+                    detail["object/{}".format(self.ErrNameMapping[k])] = val
+        else:
+            score_suffix = "_no_"
+            if "camera" in blackout_sensors:
+                score_suffix += "cam"
+            if "lidar" in blackout_sensors:
+                score_suffix += "lidar"
+        detail["object/nds" + score_suffix] = metrics["nd_score"]
+        detail["object/map" + score_suffix] = metrics["mean_ap"]
         return detail
 
     def format_results(self, results, jsonfile_prefix=None):
@@ -529,6 +537,7 @@ class NuScenesDataset(Custom3DDataset):
         metric="bbox",
         jsonfile_prefix=None,
         result_names=["pts_bbox"],
+        blackout_sensors=[],
         **kwargs,
     ):
         """Evaluation in nuScenes protocol.
@@ -545,7 +554,7 @@ class NuScenesDataset(Custom3DDataset):
         """
 
         metrics = {}
-
+        print("blackout_sensors:", str(len(blackout_sensors)))
         if "masks_bev" in results[0]:
             metrics.update(self.evaluate_map(results))
 
@@ -555,14 +564,12 @@ class NuScenesDataset(Custom3DDataset):
             if isinstance(result_files, dict):
                 for name in result_names:
                     print("Evaluating bboxes of {}".format(name))
-                    ret_dict = self._evaluate_single(result_files[name])
+                    ret_dict = self._evaluate_single(result_files[name], blackout_sensors=blackout_sensors)
                 metrics.update(ret_dict)
             elif isinstance(result_files, str):
-                metrics.update(self._evaluate_single(result_files))
-
+                metrics.update(self._evaluate_single(result_files, blackout_sensors=blackout_sensors))
             if tmp_dir is not None:
                 tmp_dir.cleanup()
-
         return metrics
 
 

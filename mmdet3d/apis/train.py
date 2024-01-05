@@ -120,7 +120,26 @@ def train_model(
         eval_cfg["by_epoch"] = cfg.runner["type"] != "IterBasedRunner"
         eval_hook = DistEvalHook
         runner.register_hook(eval_hook(val_dataloader, **eval_cfg))
-
+    for sensor in ["lidar", "camera"]:
+        cfg.data.val.pipeline.insert(-2, {"type": "SensorBlackout", "camera":  sensor == "camera", "lidar": sensor == "lidar"})
+        # Support batch_size > 1 in validation
+        val_samples_per_gpu = cfg.data.val.pop("samples_per_gpu", 1)
+        if val_samples_per_gpu > 1:
+            # Replace 'ImageToTensor' to 'DefaultFormatBundle'
+            cfg.data.val.pipeline = replace_ImageToTensor(cfg.data.val.pipeline)
+        val_dataset = build_dataset(cfg.data.val, dict(test_mode=True))
+        val_dataloader = build_dataloader(
+            val_dataset,
+            samples_per_gpu=val_samples_per_gpu,
+            workers_per_gpu=cfg.data.workers_per_gpu,
+            dist=distributed,
+            shuffle=False,
+        )
+        eval_cfg = cfg.get("evaluation", {})
+        eval_cfg["by_epoch"] = cfg.runner["type"] != "IterBasedRunner"
+        eval_cfg["blackout_sensors"] = [sensor]
+        eval_hook = DistEvalHook
+        runner.register_hook(eval_hook(val_dataloader, **eval_cfg))
     if cfg.resume_from:
         runner.resume(cfg.resume_from)
     elif cfg.load_from:

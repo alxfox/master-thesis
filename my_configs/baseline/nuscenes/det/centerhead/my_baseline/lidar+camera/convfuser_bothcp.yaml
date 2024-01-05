@@ -5,3 +5,10 @@ model:
     out_channels: 256
 
 load_from: data/runs/fusion_baseline_centerhead/fusion_baseline_centerhead_prep.pth
+
+lr_config:
+  policy: CosineAnnealing
+  warmup: linear
+  warmup_iters: 500
+  warmup_ratio: 0.33333333
+  min_lr_ratio: 1.0e-3

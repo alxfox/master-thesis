@@ -7,13 +7,17 @@ load_dim: 5
 use_dim: 5
 load_augmented: null
 
-#lidar augmentations
-fov: 
+#sensor augmentations
+fov: #lidar fov 
   rate: 0.0
   angle: 360 # angle of visible lidar points
   direction: 0 # center of visible cone
   random_direction: false # whether to randomize the direction of the fov
-drop_objects:
+drop_objects: # lidar object drop
+  rate: 0.0
+blackout: # sensor blackout
+  camera: false
+  lidar: false
   rate: 0.0
 
 point_cloud_range: [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
@@ -182,6 +186,11 @@ train_pipeline:
     fixed_prob: ${augment2d.gridmask.fixed_prob}
   -
     type: PointShuffle
+  -
+    type: SensorBlackout
+    camera: ${blackout.camera}
+    lidar: ${blackout.lidar}
+    rate: ${blackout.rate}
   -
     type: DefaultFormatBundle3D
     classes: ${object_classes}
