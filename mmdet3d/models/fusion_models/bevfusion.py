@@ -32,9 +32,13 @@ class BEVFusion(Base3DFusionModel):
         decoder: Dict[str, Any],
         heads: Dict[str, Any],
         freeze_state={ "lidar": False, "camera": False },
+        use_aux_loss=[],
         **kwargs,
     ) -> None:
         super().__init__()
+        self.use_aux_loss = use_aux_loss
+        if("camera" in use_aux_loss):
+            self.aux_loss_encoder = nn.Conv2d(80, 256, 3, padding=1)
         self.freeze_state = freeze_state
         self.encoders = nn.ModuleDict()
         if encoders.get("camera") is not None:
@@ -151,6 +155,10 @@ class BEVFusion(Base3DFusionModel):
         return x
 
     def extract_lidar_features(self, x) -> torch.Tensor:
+        # print("extr")
+        # print(len(x))
+        # print([p.shape for p in x])
+        # print(x)
         feats, coords, sizes = self.voxelize(x)
         batch_size = coords[-1, 0] + 1
         # with torch.no_grad():
@@ -257,7 +265,7 @@ class BEVFusion(Base3DFusionModel):
         ):
             if sensor == "camera":
                 with torch.set_grad_enabled(not self.freeze_state.get("camera")):
-                    feature = self.extract_camera_features(
+                    cam_feat = feature = self.extract_camera_features(
                         img,
                         points,
                         camera2ego,
@@ -272,7 +280,7 @@ class BEVFusion(Base3DFusionModel):
                     )
             elif sensor == "lidar":
                 with torch.set_grad_enabled(not self.freeze_state.get("lidar")):
-                    feature = self.extract_lidar_features(points)
+                    lidar_feat = feature = self.extract_lidar_features(points)
                 # print(points[0].detach().cpu().numpy().shape)
                 # visualize_lidar("test_vis/l.png", points[0].detach().cpu().numpy())
 
@@ -285,7 +293,7 @@ class BEVFusion(Base3DFusionModel):
                 # mmcv.imwrite(canvas1, fpath1)
                 # mmcv.imwrite(canvas2, fpath2)
                 # print("x",gt_masks_bev.shape)
-                feature = self.extract_map_features(feature_map)[-1] # only use last element if resnet is used
+                map_feat = feature = self.extract_map_features(feature_map)[-1] # only use last element if resnet is used
                 # print("y",feature.shape)
             else:
                 raise ValueError(f"unsupported sensor: {sensor}")
@@ -315,7 +323,16 @@ class BEVFusion(Base3DFusionModel):
             for type, head in self.heads.items():
                 if type == "object":
                     pred_dict = head(x, metas)
-                    losses = head.loss(gt_bboxes_3d, gt_labels_3d, pred_dict)
+                    # auxiliary loss
+                    if "camera" in self.use_aux_loss:
+                        aux_x = self.aux_loss_encoder(cam_feat)
+                        aux_x = self.decoder["backbone"](aux_x)
+                        aux_x = self.decoder["neck"](aux_x)
+                        aux_pred_dict = head(aux_x, metas)
+                        losses = head.loss(gt_bboxes_3d, gt_labels_3d, pred_dict, aux_preds_dicts=aux_x)
+                    else:
+                        losses = head.loss(gt_bboxes_3d, gt_labels_3d, pred_dict)
+                        
                 elif type == "map":
                     # if not torch.allclose(gt_masks_bev.float(),feature_map.float()):
                     #     print("was not equal!!!")

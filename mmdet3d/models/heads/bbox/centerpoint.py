@@ -582,7 +582,7 @@ class CenterHead(BaseModule):
         return heatmaps, anno_boxes, inds, masks
 
     @force_fp32(apply_to=("preds_dicts"))
-    def loss(self, gt_bboxes_3d, gt_labels_3d, preds_dicts, **kwargs):
+    def loss(self, gt_bboxes_3d, gt_labels_3d, preds_dicts, aux_preds_dicts=dict(), **kwargs):
         """Loss function for CenterHead.
         Args:
             gt_bboxes_3d (list[:obj:`LiDARInstance3DBoxes`]): Ground
@@ -594,6 +594,46 @@ class CenterHead(BaseModule):
         """
         heatmaps, anno_boxes, inds, masks = self.get_targets(gt_bboxes_3d, gt_labels_3d)
         loss_dict = dict()
+
+        # print(aux_preds_dicts)
+        for task_id, aux_preds_dict in enumerate(aux_preds_dicts):
+            # heatmap focal loss
+            aux_preds_dict[0]["heatmap"] = clip_sigmoid(aux_preds_dict[0]["heatmap"])
+            num_pos = heatmaps[task_id].eq(1).float().sum().item()
+            loss_heatmap = self.loss_cls(
+                aux_preds_dict[0]["heatmap"], heatmaps[task_id], avg_factor=max(num_pos, 1)
+            )
+            target_box = anno_boxes[task_id]
+            # reconstruct the anno_box from multiple reg heads
+            aux_preds_dict[0]["anno_box"] = torch.cat(
+                (
+                    aux_preds_dict[0]["reg"],
+                    aux_preds_dict[0]["height"],
+                    aux_preds_dict[0]["dim"],
+                    aux_preds_dict[0]["rot"],
+                    aux_preds_dict[0]["vel"],
+                ),
+                dim=1,
+            )
+
+            # Regression loss for dimension, offset, height, rotation
+            ind = inds[task_id]
+            num = masks[task_id].float().sum()
+            pred = aux_preds_dict[0]["anno_box"].permute(0, 2, 3, 1).contiguous()
+            pred = pred.view(pred.size(0), -1, pred.size(3))
+            pred = self._gather_feat(pred, ind)
+            mask = masks[task_id].unsqueeze(2).expand_as(target_box).float()
+            isnotnan = (~torch.isnan(target_box)).float()
+            mask *= isnotnan
+
+            code_weights = self.train_cfg.get("code_weights", None)
+            bbox_weights = mask * mask.new_tensor(code_weights)
+            loss_bbox = self.loss_bbox(
+                pred, target_box, bbox_weights, avg_factor=(num + 1e-4)
+            )
+            loss_dict[f"aux_heatmap/task{task_id}"] = loss_heatmap
+            loss_dict[f"aux_bbox/task{task_id}"] = loss_bbox
+
         for task_id, preds_dict in enumerate(preds_dicts):
             # heatmap focal loss
             preds_dict[0]["heatmap"] = clip_sigmoid(preds_dict[0]["heatmap"])
