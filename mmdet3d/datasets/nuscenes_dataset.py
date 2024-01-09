@@ -554,7 +554,7 @@ class NuScenesDataset(Custom3DDataset):
         """
 
         metrics = {}
-        print("blackout_sensors:", str(len(blackout_sensors)))
+        print("blackout_sensors:", blackout_sensors)
         if "masks_bev" in results[0]:
             metrics.update(self.evaluate_map(results))
 

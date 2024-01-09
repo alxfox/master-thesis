@@ -1,6 +1,5 @@
 blackout:
-  lidar: true
-  rate: 0.2
+  lidar: 0.2
 
 model:
   fuser:
@@ -29,3 +28,5 @@ gt_paste_stop_epoch: -1
 data:
   samples_per_gpu: 8
   workers_per_gpu: 8
+
+# resume_from: "runs/run-bdfefb7e-7e5131a8/epoch_5.pth"

@@ -121,7 +121,12 @@ def train_model(
         eval_hook = DistEvalHook
         runner.register_hook(eval_hook(val_dataloader, **eval_cfg))
     for sensor in ["lidar", "camera"]:
-        cfg.data.val.pipeline.insert(-2, {"type": "SensorBlackout", "camera":  sensor == "camera", "lidar": sensor == "lidar"})
+        # print(cfg.data.val.pipeline)
+        # print(cfg.data.val.pipeline[-3])
+        assert cfg.data.val.pipeline[-3]["type"] == "SensorBlackout"
+        cfg.data.val.pipeline[-3].camera = 1.0 if sensor == "camera" else 0.0
+        cfg.data.val.pipeline[-3].lidar = 1.0 if sensor == "lidar" else 0.0
+        # cfg.data.val.pipeline.insert(-2, {"type": "SensorBlackout", "camera":  sensor == "camera", "lidar": sensor == "lidar"})
         # Support batch_size > 1 in validation
         val_samples_per_gpu = cfg.data.val.pop("samples_per_gpu", 1)
         if val_samples_per_gpu > 1:

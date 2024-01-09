@@ -121,21 +121,21 @@ class ImageAug3D:
 
 @PIPELINES.register_module()
 class SensorBlackout:
-    def __init__(self, lidar=False, camera=False, rate=1.0):
+    def __init__(self, lidar=0.0, camera=0.0):
         self.camera = camera
         self.lidar = lidar
-        self.rate = rate
 
     def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        if self.camera:
-            if random.uniform(0,1) < self.rate:
+        randval = random.uniform(0,1)
+        if self.camera > 0.0:
+            if randval < self.camera:
                 for i in range(len(data["img"])):
                     # print(data["img"][i].shape)
                     data["img"][i][:] = 0
-        if self.lidar:
+        if self.lidar > 0.0:
             # print(data["points"].shape)
             # print(data["points"].tensor.shape)
-            if random.uniform(0,1) < self.rate:
+            if (randval >= self.camera) and (randval < (self.lidar + self.camera)):
                 data["points"] = data["points"][:1]
                 # print("blacking out lidar " + str(data["points"].tensor.shape))
             # else:
