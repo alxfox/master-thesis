@@ -144,7 +144,7 @@ def main():
     if args.blackout is not None:
         print("WARNING: The following sensors will be blacked out during the test:", args.blackout)
         # print(cfg.data.test.pipeline)
-        cfg.data.test.pipeline.insert(-2, {"type": "SensorBlackout", "camera":  "camera" in args.blackout, "lidar": "lidar" in args.blackout})
+        cfg.data.test.pipeline.insert(-2, {"type": "SensorBlackout", "camera":  1.0 if "camera" in args.blackout else 0.0, "lidar": 1.0 if "lidar" in args.blackout else 0.0})
         # print(cfg.data.test.pipeline)
     # sys.exit()
     if args.cfg_options is not None:
