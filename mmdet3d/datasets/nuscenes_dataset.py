@@ -274,6 +274,50 @@ class NuScenesDataset(Custom3DDataset):
                 camera2lidar[:3, 3] = camera_info["sensor2lidar_translation"]
                 data["camera2lidar"].append(camera2lidar)
 
+            if False:
+                data["past_image_paths"] = []
+                data["past_lidar2camera"] = []
+                data["past_lidar2image"] = []
+                data["past_camera2ego"] = []
+                data["past_camera_intrinsics"] = []
+                data["past_camera2lidar"] = []
+
+                for _, camera_info in info["past_cams"].items():
+                    data["past_image_paths"].append(camera_info["data_path"])
+
+                    # lidar to camera transform
+                    lidar2camera_r = np.linalg.inv(camera_info["sensor2lidar_rotation"])
+                    lidar2camera_t = (
+                        camera_info["sensor2lidar_translation"] @ lidar2camera_r.T
+                    )
+                    lidar2camera_rt = np.eye(4).astype(np.float32)
+                    lidar2camera_rt[:3, :3] = lidar2camera_r.T
+                    lidar2camera_rt[3, :3] = -lidar2camera_t
+                    data["past_lidar2camera"].append(lidar2camera_rt.T)
+
+                    # camera intrinsics
+                    camera_intrinsics = np.eye(4).astype(np.float32)
+                    camera_intrinsics[:3, :3] = camera_info["camera_intrinsics"]
+                    data["past_camera_intrinsics"].append(camera_intrinsics)
+
+                    # lidar to image transform
+                    lidar2image = camera_intrinsics @ lidar2camera_rt.T
+                    data["past_lidar2image"].append(lidar2image)
+
+                    # camera to ego transform
+                    camera2ego = np.eye(4).astype(np.float32)
+                    camera2ego[:3, :3] = Quaternion(
+                        camera_info["sensor2ego_rotation"]
+                    ).rotation_matrix
+                    camera2ego[:3, 3] = camera_info["sensor2ego_translation"]
+                    data["past_camera2ego"].append(camera2ego)
+
+                    # camera to lidar transform
+                    camera2lidar = np.eye(4).astype(np.float32)
+                    camera2lidar[:3, :3] = camera_info["sensor2lidar_rotation"]
+                    camera2lidar[:3, 3] = camera_info["sensor2lidar_translation"]
+                    data["past_camera2lidar"].append(camera2lidar)
+
         annos = self.get_ann_info(index)
         data["ann_info"] = annos
         return data
@@ -318,7 +362,7 @@ class NuScenesDataset(Custom3DDataset):
         # the same as KITTI (0.5, 0.5, 0)
         # haotian: this is an important change: from 0.5, 0.5, 0.5 -> 0.5, 0.5, 0
         gt_bboxes_3d = LiDARInstance3DBoxes(
-            gt_bboxes_3d, box_dim=gt_bboxes_3d.shape[-1], origin=(0.5, 0.5, 0)
+            gt_bboxes_3d, box_dim=gt_bboxes_3d.shape[-1], origin=(0.5, 0.5, 0.5)
         ).convert_to(self.box_mode_3d)
 
         anns_results = dict(
@@ -423,7 +467,7 @@ class NuScenesDataset(Custom3DDataset):
             dict: Dictionary of evaluation details.
         """
         from nuscenes import NuScenes
-        from nuscenes.eval.detection.evaluate import DetectionEval
+        from mmdet3d.datasets.nuscenes_detection_eval import NuscenesDetectionEval
 
         output_dir = osp.join(*osp.split(result_path)[:-1])
         nusc = NuScenes(version=self.version, dataroot=self.dataset_root, verbose=False)
@@ -431,39 +475,47 @@ class NuScenesDataset(Custom3DDataset):
             "v1.0-mini": "mini_val",
             "v1.0-trainval": "val",
         }
-        nusc_eval = DetectionEval(
-            nusc,
-            config=self.eval_detection_configs,
-            result_path=result_path,
-            eval_set=eval_set_map[self.version],
-            output_dir=output_dir,
-            verbose=False,
-        )
-        nusc_eval.main(render_curves=False)
-
-        # record metrics
-        metrics = mmcv.load(osp.join(output_dir, "metrics_summary.json"))
         detail = dict()
-        score_suffix = ""
-        if len(blackout_sensors) == 0:
-            for name in self.CLASSES:
-                for k, v in metrics["label_aps"][name].items():
-                    val = float("{:.4f}".format(v))
-                    detail["object/{}_ap_dist_{}".format(name, k)] = val
-                for k, v in metrics["label_tp_errors"][name].items():
-                    val = float("{:.4f}".format(v))
-                    detail["object/{}_{}".format(name, k)] = val
-                for k, v in metrics["tp_errors"].items():
-                    val = float("{:.4f}".format(v))
-                    detail["object/{}".format(self.ErrNameMapping[k])] = val
-        else:
-            score_suffix = "_no_"
+        for min_dist, max_dist in [(0.0, 100.0)]:#,(0.0, 20.0),(20.0, 30.0),(30.0, 40.0),(40.0, 100.0)]:
+            print("results for:", min_dist, max_dist)
+            self.eval_detection_configs.min_dist = min_dist
+            self.eval_detection_configs.max_dist = max_dist
+            nusc_eval = NuscenesDetectionEval(
+                nusc,
+                config=self.eval_detection_configs,
+                result_path=result_path,
+                eval_set=eval_set_map[self.version],
+                output_dir=output_dir,
+                verbose=False,
+            )
+            nusc_eval.main(render_curves=False)
+
+            # record metrics
+            metrics = mmcv.load(osp.join(output_dir, "metrics_summary.json"))
+            score_suffix = ""
             if "camera" in blackout_sensors:
-                score_suffix += "cam"
+                score_suffix += "_no_cam"
             if "lidar" in blackout_sensors:
-                score_suffix += "lidar"
-        detail["object/nds" + score_suffix] = metrics["nd_score"]
-        detail["object/map" + score_suffix] = metrics["mean_ap"]
+                score_suffix += "_no_lidar"
+            if "fov180" in blackout_sensors:
+                score_suffix += "_lidar_fov_180"
+            if "fov120" in blackout_sensors:
+                score_suffix += "_lidar_fov_120"
+            if(min_dist != 0.0 or max_dist != 100.0):
+                score_suffix += f"_r{str(min_dist)}_{str(max_dist)}"
+            if len(blackout_sensors)>0:
+                for name in self.CLASSES:
+                    for k, v in metrics["label_aps"][name].items():
+                        val = float("{:.4f}".format(v))
+                        detail["object/{}_ap_dist_{}{}".format(name, k, score_suffix)] = val
+                    for k, v in metrics["label_tp_errors"][name].items():
+                        val = float("{:.4f}".format(v))
+                        detail["object/{}_{}{}".format(name, k, score_suffix)] = val
+                    for k, v in metrics["tp_errors"].items():
+                        val = float("{:.4f}".format(v))
+                        detail["object/{}{}".format(self.ErrNameMapping[k], score_suffix)] = val
+            detail["object/nds" + score_suffix] = metrics["nd_score"]
+            detail["object/map" + score_suffix] = metrics["mean_ap"]
         return detail
 
     def format_results(self, results, jsonfile_prefix=None):
@@ -497,7 +549,7 @@ class NuScenesDataset(Custom3DDataset):
         result_files = self._format_bbox(results, jsonfile_prefix)
         return result_files, tmp_dir
 
-    def evaluate_map(self, results):
+    def evaluate_map(self, results): # map means map, not mAP
         thresholds = torch.tensor([0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65])
 
         num_classes = len(self.map_classes)
