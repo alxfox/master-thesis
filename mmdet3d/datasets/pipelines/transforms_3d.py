@@ -21,6 +21,7 @@ from mmdet.datasets.builder import PIPELINES
 from ..builder import OBJECTSAMPLERS
 from .utils import noise_per_object_v3_
 
+import math
 
 @PIPELINES.register_module()
 class ImageAug3D:
@@ -167,22 +168,23 @@ class LimitFoV:
                     self.point_cloud_angle_range[i] = self.point_cloud_angle_range[i] + 360
             # print(point_cloud_angle_range)
 
-    def filter_points_by_angle(self, points):
-        if isinstance(points, np.ndarray):
-            points_numpy = points
-        elif isinstance(points, BasePoints):
-            points_numpy = points.tensor.numpy()
-        else:
-            raise NotImplementedError
+    def filter_points_by_angle(self, points_):
+        points = points_.tensor
+        # if isinstance(points, np.ndarray):
+        #     points_numpy = points
+        # elif isinstance(points, BasePoints):
+        #     points_numpy = points.tensor.numpy()
+        # else:
+        #     raise NotImplementedError
         # print(points_numpy[points_numpy[:,1]>0])
-        pts_phi = (np.arctan(points_numpy[:, 0] / points_numpy[:, 1]) + (points_numpy[:, 1] < 0) * np.pi + np.pi * 2) % (np.pi * 2) 
+        pts_phi = (torch.atan(points[:, 0] / points[:, 1]) + (points[:, 1] < 0) * math.pi + math.pi * 2) % (math.pi * 2) 
 
-        pts_phi[pts_phi>np.pi] -= np.pi * 2
+        pts_phi[pts_phi>math.pi] -= math.pi * 2
         pts_phi = pts_phi/np.pi*180
 
-        assert np.all(-180 <= pts_phi) and np.all(pts_phi <= 180)
+        assert torch.all(-180 <= pts_phi) and torch.all(pts_phi <= 180)
 
-        filt = np.logical_and(pts_phi>=self.point_cloud_angle_range[0], pts_phi<=self.point_cloud_angle_range[1])
+        filt = torch.logical_and(pts_phi>=self.point_cloud_angle_range[0], pts_phi<=self.point_cloud_angle_range[1])
         # points_numpy = points_numpy[filt]
         # print(points_numpy[points_numpy[:,1]>0])
 
@@ -212,7 +214,7 @@ class LimitFoV:
         # plt.savefig('/data2/linzhiwei/project/TransFusion_SST/tmp/after.png')
 
         # print(a)
-        return points[filt]
+        return points_[filt]
     def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
         if(self.apply_limit and "points" in data):
             data["points"] = self.filter_points_by_angle(data["points"])
