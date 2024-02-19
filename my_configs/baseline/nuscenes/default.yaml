@@ -6,11 +6,13 @@ reduce_beams: 32
 load_dim: 5
 use_dim: 5
 load_augmented: null
-
+depth_bound: [1.0, 60.0, 0.5]
+use_camera_4d: false
+multi_adj_frame_id_cfg: [1, 1, 1] # number of frames used = multi_adj_frame_id_cfg[1] - multi_adj_frame_id_cfg[0]
 #sensor augmentations
 fov: #lidar fov 
   rate: 0.0
-  angle: 360 # angle of visible lidar points
+  angle: 120 # angle of visible lidar points
   direction: 0 # center of visible cone
   random_direction: false # whether to randomize the direction of the fov
 drop_objects: # lidar object drop
@@ -18,7 +20,6 @@ drop_objects: # lidar object drop
 blackout: # sensor blackout
   camera: false
   lidar: false
-  rate: 0.0
 
 point_cloud_range: [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
 voxel_size: [0.1, 0.1, 0.2]
@@ -70,6 +71,7 @@ train_pipeline:
   -
     type: LoadMultiViewImageFromFiles
     to_float32: true
+    camera_4d: ${use_camera_4d}
   -
     type: LoadPointsFromFile
     coord_type: LIDAR
@@ -153,6 +155,10 @@ train_pipeline:
     trans_lim: ${augment3d.translate}
     is_train: true
   -
+    type: PointToMultiViewDepth
+    dbound: ${depth_bound}
+    downsample: 1
+  -
     type: LoadBEVSegmentation
     dataset_root: ${dataset_root}
     xbound: [-50.0, 50.0, 0.5]
@@ -201,6 +207,7 @@ train_pipeline:
       - gt_bboxes_3d
       - gt_labels_3d
       - gt_masks_bev
+      - gt_depth
     meta_keys:
       - camera_intrinsics
       - camera2ego
@@ -215,6 +222,7 @@ test_pipeline:
   -
     type: LoadMultiViewImageFromFiles
     to_float32: true
+    camera_4d: ${use_camera_4d}
   -
     type: LoadPointsFromFile
     coord_type: LIDAR
@@ -251,6 +259,10 @@ test_pipeline:
     trans_lim: 0.0
     is_train: false
   -
+    type: PointToMultiViewDepth
+    dbound: ${depth_bound}
+    downsample: 1
+  -
     type: LoadBEVSegmentation
     dataset_root: ${dataset_root}
     xbound: [-50.0, 50.0, 0.5]
@@ -263,6 +275,12 @@ test_pipeline:
     type: ImageNormalize
     mean: [0.485, 0.456, 0.406]
     std: [0.229, 0.224, 0.225]
+  -
+    type: LimitFoV
+    rate: 0.0
+    angle: 360 # angle of visible 
+    direction: 0 # center of visible cone
+    random_direction: false # whether to randomize the direction of the fov
   -
     type: SensorBlackout
     camera: 0.0
@@ -278,6 +296,7 @@ test_pipeline:
       - gt_bboxes_3d
       - gt_labels_3d
       - gt_masks_bev
+      - gt_depth
     meta_keys:
       - camera_intrinsics
       - camera2ego
@@ -304,6 +323,8 @@ data:
       test_mode: false
       use_valid_flag: true
       box_type_3d: LiDAR
+      camera_4d: ${use_camera_4d}
+      multi_adj_frame_id_cfg: ${multi_adj_frame_id_cfg}
   val:
     type: ${dataset_type}
     dataset_root: ${dataset_root}
@@ -314,6 +335,8 @@ data:
     modality: ${input_modality}
     test_mode: false
     box_type_3d: LiDAR
+    camera_4d: ${use_camera_4d}
+    multi_adj_frame_id_cfg: ${multi_adj_frame_id_cfg}
   test:
     type: ${dataset_type}
     dataset_root: ${dataset_root}
@@ -324,6 +347,8 @@ data:
     modality: ${input_modality}
     test_mode: true
     box_type_3d: LiDAR
+    camera_4d: ${use_camera_4d}
+    multi_adj_frame_id_cfg: ${multi_adj_frame_id_cfg}
 
 evaluation:
   interval: 1

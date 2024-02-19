@@ -25,7 +25,7 @@ model:
         xbound: [-51.2, 51.2, 0.4]
         ybound: [-51.2, 51.2, 0.4]
         zbound: [-10.0, 10.0, 20.0]
-        dbound: [1.0, 60.0, 0.5]
+        dbound: ${depth_bound}
         downsample: 2
     lidar:
       voxelize:

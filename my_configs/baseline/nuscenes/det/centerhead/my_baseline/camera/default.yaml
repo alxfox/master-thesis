@@ -1,3 +1,6 @@
+# When performing camera-only training, use the following swinT checkpoint (pretrained on nuImages):
+# torchpack dist-run -np 8 python tools/train.py configs/nuscenes/det/centerhead/lssfpn/camera/256x704/swint/default.yaml --model.encoders.camera.backbone.init_cfg.checkpoint data/pretrained/swint-nuimages-pretrained.pth
+use_camera_4d: true
 augment3d:
   scale: [0.95, 1.05]
   rotate: [-0.3925, 0.3925]
@@ -52,7 +55,7 @@ model:
         xbound: [-51.2, 51.2, 0.4]
         ybound: [-51.2, 51.2, 0.4]
         zbound: [-10.0, 10.0, 20.0]
-        dbound: [1.0, 60.0, 0.5]
+        dbound: ${depth_bound}
         downsample: 2
     #   type: GeneralizedResNet
     #   blocks:
