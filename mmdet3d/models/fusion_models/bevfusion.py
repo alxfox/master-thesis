@@ -33,14 +33,19 @@ class BEVFusion(Base3DFusionModel):
         heads: Dict[str, Any],
         freeze_state={ "lidar": False, "camera": False },
         use_aux_loss=[],
+        merge_bev_4d_cfg: Dict[str, Any] = {"type": "first"},
+        loss_depth_weight=0.0,
         **kwargs,
     ) -> None:
         super().__init__()
+        self.loss_depth_weight = loss_depth_weight
+        self.merge_bev_4d_cfg = merge_bev_4d_cfg
         self.use_aux_loss = use_aux_loss
-        if("camera" in use_aux_loss):
-            self.aux_loss_encoder = nn.Conv2d(80, 256, 3, padding=1)
+        # if("camera" in use_aux_loss):
+        #     self.aux_loss_encoder = build_fuser({"type": "ConvFuser", "in_channels": [80], "out_channels": 256})
         self.freeze_state = freeze_state
         self.encoders = nn.ModuleDict()
+        self.visualize = False
         if encoders.get("camera") is not None:
             self.encoders["camera"] = nn.ModuleDict(
                 {
@@ -126,6 +131,7 @@ class BEVFusion(Base3DFusionModel):
         img_aug_matrix,
         lidar_aug_matrix,
         img_metas,
+        # ego2global,
     ) -> torch.Tensor:
         B, N, C, H, W = x.size()
         x = x.view(B * N, C, H, W)
@@ -138,21 +144,35 @@ class BEVFusion(Base3DFusionModel):
 
         BN, C, H, W = x.size()
         x = x.view(B, int(BN / B), C, H, W)
-
-        x = self.encoders["camera"]["vtransform"](
-            x,
-            points,
-            camera2ego,
-            lidar2ego,
-            lidar2camera,
-            lidar2image,
-            camera_intrinsics,
-            camera2lidar,
-            img_aug_matrix,
-            lidar_aug_matrix,
-            img_metas,
-        )
-        return x
+        num_cams = 6 # TODO hard-coded for 6 cameras
+        bev_feat_list = []
+        current_depth = None
+        for i in range(0, N//num_cams): 
+            # print("yyy")
+            mlp_input = self.encoders["camera"]["vtransform"].get_mlp_input(camera2lidar, camera_intrinsics, post_rot=img_aug_matrix[..., :3, :3], post_tran=img_aug_matrix[..., :3, 3], bda=lidar_aug_matrix)
+            with torch.set_grad_enabled(self.training and i == 0):
+                bev_feat, depth = self.encoders["camera"]["vtransform"](
+                    x[:,(num_cams * i):(num_cams * (i+1))],
+                    points,
+                    camera2ego,
+                    lidar2ego,
+                    lidar2camera,
+                    lidar2image,
+                    camera_intrinsics[:,(num_cams * i):(num_cams * (i+1))],
+                    camera2lidar[:,(num_cams * i):(num_cams * (i+1))],
+                    img_aug_matrix[:,(num_cams * i):(num_cams * (i+1))],
+                    lidar_aug_matrix,
+                    img_metas,
+                    mlp_input=mlp_input
+                )
+                if(i == 0):
+                    current_depth = depth
+                bev_feat_list.append(bev_feat)
+        if(self.merge_bev_4d_cfg["type"] == "first"):
+            merged_bev_feat = bev_feat_list[0]
+        elif(self.merge_bev_4d_cfg["type"] == "concat"):
+            merged_bev_feat = torch.cat(bev_feat_list, dim=1)
+        return merged_bev_feat, current_depth
 
     def extract_lidar_features(self, x) -> torch.Tensor:
         # print("extr")
@@ -215,6 +235,7 @@ class BEVFusion(Base3DFusionModel):
         gt_masks_bev=None,
         gt_bboxes_3d=None,
         gt_labels_3d=None,
+        gt_depth=None,
         **kwargs,
     ):
         if isinstance(img, list):
@@ -235,6 +256,7 @@ class BEVFusion(Base3DFusionModel):
                 gt_masks_bev,
                 gt_bboxes_3d,
                 gt_labels_3d,
+                gt_depth,
                 **kwargs,
             )
             return outputs
@@ -256,16 +278,18 @@ class BEVFusion(Base3DFusionModel):
         gt_masks_bev=None,
         gt_bboxes_3d=None,
         gt_labels_3d=None,
-        feature_map=None,
+        # feature_map=None,
+        gt_depth=None,
         **kwargs,
     ):
+        # print("sheap",img.shape, gt_depth.shape)
         features = []
         for sensor in (
             self.encoders if self.training else list(self.encoders.keys())[::-1]
         ):
             if sensor == "camera":
-                with torch.set_grad_enabled(not self.freeze_state.get("camera")):
-                    cam_feat = feature = self.extract_camera_features(
+                with torch.set_grad_enabled(self.training and not self.freeze_state.get("camera")):
+                    cam_feat, pred_depth = self.extract_camera_features(
                         img,
                         points,
                         camera2ego,
@@ -278,8 +302,9 @@ class BEVFusion(Base3DFusionModel):
                         lidar_aug_matrix,
                         metas,
                     )
+                feature = cam_feat
             elif sensor == "lidar":
-                with torch.set_grad_enabled(not self.freeze_state.get("lidar")):
+                with torch.set_grad_enabled(self.training and not self.freeze_state.get("lidar")):
                     lidar_feat = feature = self.extract_lidar_features(points)
                 # print(points[0].detach().cpu().numpy().shape)
                 # visualize_lidar("test_vis/l.png", points[0].detach().cpu().numpy())
@@ -314,9 +339,11 @@ class BEVFusion(Base3DFusionModel):
             x = features[0]
 
         batch_size = x.shape[0]
-
+        # print("xshape1", x.shape)
         x = self.decoder["backbone"](x)
+        # print("xshape2", [elem.shape for elem in x])
         x = self.decoder["neck"](x)
+        # print("xshape3", [elem.shape for elem in x])
 
         if self.training:
             outputs = {}
@@ -325,13 +352,20 @@ class BEVFusion(Base3DFusionModel):
                     pred_dict = head(x, metas)
                     # auxiliary loss
                     if "camera" in self.use_aux_loss:
-                        aux_x = self.aux_loss_encoder(cam_feat)
+                        aux_x = self.aux_loss_encoder([cam_feat])
                         aux_x = self.decoder["backbone"](aux_x)
                         aux_x = self.decoder["neck"](aux_x)
                         aux_pred_dict = head(aux_x, metas)
-                        losses = head.loss(gt_bboxes_3d, gt_labels_3d, pred_dict, aux_preds_dicts=aux_x)
+                        depth_preds = self.encoders["camera"]["vtransform"].depth_buffer
+                        losses = head.loss(gt_bboxes_3d, gt_labels_3d, pred_dict, aux_preds_dicts=aux_pred_dict, depth_preds=depth_preds)
                     else:
                         losses = head.loss(gt_bboxes_3d, gt_labels_3d, pred_dict)
+                    
+                    # print(self.loss_depth_weight)
+                    if(self.loss_depth_weight > 0.0):
+                        losses["depth"] = self.encoders["camera"]["vtransform"].get_depth_loss(gt_depth, pred_depth, self.loss_depth_weight)
+                    
+                        # TODO: Add 4D input and depth supervision
                         
                 elif type == "map":
                     # if not torch.allclose(gt_masks_bev.float(),feature_map.float()):
@@ -353,6 +387,13 @@ class BEVFusion(Base3DFusionModel):
                     pred_dict = head(x, metas)
                     bboxes = head.get_bboxes(pred_dict, metas)
                     for k, (boxes, scores, labels) in enumerate(bboxes):
+                        # if "camera" in self.encoders.keys():
+                        if self.visualize:
+                            outputs[k].update({"pred_depth": pred_depth.cpu()})
+                            # outputs[k].update({"pred_depth": self.encoders["camera"]["vtransform"].depth_buffer.cpu()})
+                            outputs[k].update({"gt_depth": gt_depth.cpu()})
+                            outputs[k].update({"cam_points": [cam_points.detach().cpu().numpy() for cam_points in self.encoders["camera"]["vtransform"].cam_points_buffer]})
+                            self.encoders["camera"]["vtransform"].cam_points_buffer = []
                         outputs[k].update(
                             {
                                 "boxes_3d": boxes.to("cpu"),

@@ -50,7 +50,7 @@ def parse_args():
         "--blackout",
         type=str,
         nargs="+",
-        choices=["lidar", "camera"],
+        choices=["lidar", "camera", "fov120", "fov180"],
         help="whether to black out one or more of the sensor inputs",
     )
     parser.add_argument("--show", action="store_true", help="show results")
@@ -144,7 +144,10 @@ def main():
     if args.blackout is not None:
         print("WARNING: The following sensors will be blacked out during the test:", args.blackout)
         # print(cfg.data.test.pipeline)
-        cfg.data.test.pipeline.insert(-2, {"type": "SensorBlackout", "camera":  1.0 if "camera" in args.blackout else 0.0, "lidar": 1.0 if "lidar" in args.blackout else 0.0})
+        if("fov120" in args.blackout or "fov180" in args.blackout):
+            cfg.data.test.pipeline.insert(-2, {"type": "LimitFoV", "rate":  1.0, "angle": 120 if "fov120" in args.blackout else (180 if "fov180" in args.blackout else 360)})
+        if("camera" in args.blackout or "lidar" in args.blackout):
+            cfg.data.test.pipeline.insert(-2, {"type": "SensorBlackout", "camera":  1.0 if "camera" in args.blackout else 0.0, "lidar": 1.0 if "lidar" in args.blackout else 0.0})
         # print(cfg.data.test.pipeline)
     # sys.exit()
     if args.cfg_options is not None:

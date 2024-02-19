@@ -99,6 +99,8 @@ class DefaultFormatBundle3D:
                     )
         if "img" in results:
             results["img"] = DC(torch.stack(results["img"]), stack=True)
+        if "gt_depth" in results:
+            results["gt_depth"] = DC(torch.stack(results["gt_depth"]), stack=True)
 
         for key in [
             "proposals",

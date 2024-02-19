@@ -93,10 +93,14 @@ class ImageAug3D:
         return img, rotation, translation
 
     def __call__(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        # data["img"] = new_imgs[:6]
         imgs = data["img"]
         new_imgs = []
+        # new_depths = []
         transforms = []
-        for img in imgs:
+        for index in range(len(imgs)):
+            img = imgs[index]
+            # depth = data["gt_depth"][index]
             resize, resize_dims, crop, flip, rotate = self.sample_augmentation(data)
             post_rot = torch.eye(2)
             post_tran = torch.zeros(2)
@@ -110,13 +114,28 @@ class ImageAug3D:
                 flip=flip,
                 rotate=rotate,
             )
+            # if(index<=6):
+            #     new_depth, _, _ = self.img_transform(
+            #         depth,
+            #         post_rot,
+            #         post_tran,
+            #         resize=resize,
+            #         resize_dims=resize_dims,
+            #         crop=crop,
+            #         flip=flip,
+            #         rotate=rotate,
+            #     )
             transform = torch.eye(4)
             transform[:2, :2] = rotation
             transform[:2, 3] = translation
             new_imgs.append(new_img)
+            # new_depths.append(new_depth)
             transforms.append(transform.numpy())
         data["img"] = new_imgs
+        data["img_shape"] = new_imgs[0].size
+        # data["gt_depth"] = new_depths
         # update the calibration matrices
+        transforms = np.stack(transforms)
         data["img_aug_matrix"] = transforms
         return data
 

@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 
 from ..bbox import LiDARInstance3DBoxes
 
-__all__ = ["visualize_camera", "visualize_lidar", "visualize_map", "visualize_feature_map"]
+__all__ = ["visualize_camera", "visualize_lidar", "visualize_map", "visualize_feature_map", "visualize_depth"]
 
 
 OBJECT_PALETTE = {
@@ -39,6 +39,48 @@ MAP_PALETTE = {
     "divider": (106, 61, 154),
 }
 
+
+def visualize_depth(
+    fpath: str,
+    image: np.ndarray,
+    pred_depth: np.ndarray, # pred_depth is upscaled from 32x88x1 to 256x704x1
+    gt_depth: np.ndarray, # gt_depth is 256x704x1
+    *,
+    bboxes: Optional[LiDARInstance3DBoxes] = None,
+    labels: Optional[np.ndarray] = None,
+    transform: Optional[np.ndarray] = None,
+    classes: Optional[List[str]] = None,
+    color: Optional[Tuple[int, int, int]] = None,
+    thickness: float = 4,
+) -> None:
+    image = np.array(image, dtype=np.uint8)#.astype(np.uint8)
+    image = np.transpose(image, axes=(1,2,0))#.astype(np.uint8)
+    max_depth = 59.5
+    pred_canvas = np.clip((pred_depth*255/max_depth),a_min=0, a_max = 255).astype(np.uint8)
+    # print(pred_depth.shape)
+    pred_canvas = cv2.applyColorMap(pred_canvas, cv2.COLORMAP_JET) # blue = 0
+    pred_canvas = cv2.resize(pred_canvas, image.shape[1::-1], cv2.INTER_AREA)
+    # image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    # image = cv2.resize(image, (88, 32), cv2.INTER_AREA)
+    # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    pred_canvas = np.concatenate((image, pred_canvas), axis=0)
+
+    gt_canvas = np.clip((gt_depth*255/max_depth),a_min=0, a_max = 255).astype(np.uint8)
+    # print(gt_depth.shape)
+    gt_canvas = cv2.applyColorMap(gt_canvas, cv2.COLORMAP_JET) # blue = 0
+    gt_canvas = cv2.resize(gt_canvas, image.shape[1::-1], cv2.INTER_AREA)
+    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    # image = cv2.resize(image, (88, 32), cv2.INTER_AREA)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    overlay_canvas = np.copy(gt_canvas)
+    no_point_mask = np.logical_and(gt_canvas[...,0] == 128, gt_canvas[...,1] == 0)
+    # print(gt_canvas.shape,no_point_mask.shape, gt_canvas[0, 100])
+    overlay_canvas[no_point_mask] = image[no_point_mask]
+    gt_canvas = np.concatenate((gt_canvas, overlay_canvas), axis=0)
+
+    canvas = np.concatenate((pred_canvas, gt_canvas), axis=1)
+    mmcv.mkdir_or_exist(os.path.dirname(fpath))
+    mmcv.imwrite(canvas, fpath)
 
 def visualize_camera(
     fpath: str,
@@ -122,6 +164,7 @@ def visualize_lidar(
     color: Optional[Tuple[int, int, int]] = None,
     radius: float = 15,
     thickness: float = 25,
+    point_color="white"
 ) -> None:
     fig = plt.figure(figsize=(xlim[1] - xlim[0], ylim[1] - ylim[0]))
 
@@ -136,7 +179,7 @@ def visualize_lidar(
             lidar[:, 0],
             lidar[:, 1],
             s=radius,
-            c="white",
+            c=point_color,
         )
 
     if bboxes is not None and len(bboxes) > 0:

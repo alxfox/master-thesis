@@ -13,13 +13,112 @@ from mmdet.datasets.builder import PIPELINES
 from mmdet.datasets.pipelines import LoadAnnotations
 
 from .loading_utils import load_augmented_point_cloud, reduce_LiDAR_beams
-
-
+import torch
 @PIPELINES.register_module()
-class LoadMultiViewImageFromFiles:
-    """Load multi channel images from a list of separate channel files.
+class PointToMultiViewDepth(object):
 
-    Expects results['image_paths'] to be a list of filenames.
+    def __init__(self, dbound, downsample=1):
+        self.downsample = downsample
+        self.dbound = dbound
+
+    def points2depthmap(self, points, height, width):
+        height, width = height // self.downsample, width // self.downsample
+        depth_map = torch.zeros((height, width), dtype=torch.float32)
+        coor = torch.round(points[:, :2] / self.downsample)
+        depth = points[:, 2]
+        kept1 = (coor[:, 0] >= 0) & (coor[:, 0] < width) & (
+            coor[:, 1] >= 0) & (coor[:, 1] < height) & (
+                depth < self.dbound[1]) & (
+                    depth >= self.dbound[0])
+        coor, depth = coor[kept1], depth[kept1]
+        ranks = coor[:, 0] + coor[:, 1] * width
+        sort = (ranks + depth / 100.).argsort()
+        coor, depth, ranks = coor[sort], depth[sort], ranks[sort]
+
+        kept2 = torch.ones(coor.shape[0], device=coor.device, dtype=torch.bool)
+        kept2[1:] = (ranks[1:] != ranks[:-1])
+        coor, depth = coor[kept2], depth[kept2]
+        coor = coor.to(torch.long)
+        depth_map[coor[:, 1], coor[:, 0]] = depth
+        return depth_map
+
+    def __call__(self, results):
+        points_lidar = results['points']
+        ##
+        imgs = results['img']
+        #
+        # imgs, rots, trans, intrins = results['img_inputs'][:4]
+        # print(len(results["camera_intrinsics"]))
+        # print(results["camera_intrinsics"][0].shape)
+        # rots = results["camera2ego"][..., :3, :3]
+        # trans = results["camera2ego"][..., :3, 3]
+        intrins = torch.tensor(results["camera_intrinsics"][..., :3, :3])
+        post_rots = torch.tensor(results["img_aug_matrix"][..., :3, :3])
+        post_trans = torch.tensor(results["img_aug_matrix"][..., :3, 3])
+        # post_rots, post_trans, bda = results['img_inputs'][4:]
+        depth_map_list = []
+        for cid in range(len(results['cam_names'])):
+            cam_name = results['cam_names'][cid]
+            lidar2lidarego = torch.eye(4, dtype=torch.float32)
+            # lidar2lidarego[:3, :3] = Quaternion(
+            #     results['curr_img']['lidar2ego_rotation']).rotation_matrix
+            # lidar2lidarego[:3, 3] = results['curr_img']['lidar2ego_translation']
+            # lidar2lidarego = lidar2lidarego
+            lidar2lidarego = torch.tensor(results["lidar2ego"])
+
+            # lidarego2global = torch.eye(4, dtype=torch.float32)
+            # lidarego2global[:3, :3] = Quaternion(
+            #     results['curr_img']['ego2global_rotation']).rotation_matrix
+            # lidarego2global[:3, 3] = results['curr_img']['ego2global_translation']
+            # lidarego2global = lidarego2global
+            lidarego2global = torch.tensor(results["ego2global"])
+
+            # cam2camego = torch.eye(4, dtype=torch.float32)
+            # cam2camego[:3, :3] = Quaternion(
+            #     results['curr_img']['cams'][cam_name]
+            #     ['sensor2ego_rotation']).rotation_matrix
+            # cam2camego[:3, 3] = results['curr_img']['cams'][cam_name][
+            #     'sensor2ego_translation']
+            # cam2camego = cam2camego
+            cam2camego = torch.tensor(results["camera2ego"][cid])
+            # camego2global = torch.eye(4, dtype=torch.float32)
+            # camego2global[:3, :3] = Quaternion(
+            #     results['curr_img']['cams'][cam_name]
+            #     ['ego2global_rotation']).rotation_matrix
+            # camego2global[:3, 3] = results['curr_img']['cams'][cam_name][
+            #     'ego2global_translation']
+            # camego2global = camego2global
+            camego2global = torch.tensor(results["ego2global"])
+
+            # print("sheeep", [x.shape for x in [camego2global, lidar2lidarego, lidarego2global, cam2camego]])
+            cam2img = torch.eye(4, dtype=torch.float32)
+            cam2img = cam2img
+            cam2img[:3, :3] = intrins[cid]
+
+            lidar2cam = torch.inverse(camego2global.matmul(cam2camego)).matmul(
+                lidarego2global.matmul(lidar2lidarego))
+            lidar2img = cam2img.matmul(lidar2cam)
+            points_img = points_lidar.tensor[:, :3].matmul(
+                lidar2img[:3, :3].T) + lidar2img[:3, 3].unsqueeze(0)
+            points_img = torch.cat(
+                [points_img[:, :2] / points_img[:, 2:3], points_img[:, 2:3]],
+                1)
+            points_img = points_img.matmul(
+                post_rots[cid].T) + post_trans[cid:cid + 1, :]
+            depth_map = self.points2depthmap(points_img, results["img_shape"][1],
+                                             results["img_shape"][0])
+            # print("img shape for depth is", results["img_shape"])
+            depth_map_list.append(depth_map)
+            # print(len(imgs), results["img_shape"], depth_map.shape)
+        depth_map = depth_map_list
+        results["gt_depth"] = depth_map
+        return results
+@PIPELINES.register_module()
+class LoadGTDepth:
+    """Load depth by projecting LiDAR points into the camera frames
+
+    Expects results['img'] to be loaded.
+    Expects results['points'] to be loaded.
 
     Args:
         to_float32 (bool): Whether to convert the img to float32.
@@ -30,6 +129,226 @@ class LoadMultiViewImageFromFiles:
     def __init__(self, to_float32=False, color_type="unchanged"):
         self.to_float32 = to_float32
         self.color_type = color_type
+
+    def __call__(self, results):
+        """Call function to generate ground truth depths for each camera frame
+
+        Args:
+            results (dict): Result dict containing multi-view image filenames.
+
+        Returns:
+            dict: The result dict containing the multi-view image data. \
+                Added keys and values are described below.
+
+                - filename (str): Multi-view image filenames.
+                - img (np.ndarray): Multi-view image arrays.
+                - img_shape (tuple[int]): Shape of multi-view image arrays.
+                - ori_shape (tuple[int]): Shape of original image arrays.
+                - pad_shape (tuple[int]): Shape of padded image arrays.
+                - scale_factor (float): Scale factor.
+                - img_norm_cfg (dict): Normalization configuration of images.
+        """
+        # img is of shape (h, w, c, num_views)
+        # modified for waymo
+        images = []
+        h, w = 0, 0
+        for name in filename:
+            images.append(Image.open(name))
+        
+        lidar2point = data["lidar_aug_matrix"]
+        point2lidar = np.linalg.inv(lidar2point)
+        lidar2ego = data["lidar2ego"]
+        ego2global = data["ego2global"]
+        lidar2global = ego2global @ lidar2ego @ point2lidar
+        # unravel to list, see `DefaultFormatBundle` in formating.py
+        # which will transpose each image separately and then stack into array
+
+        
+        results["gt_depth"] = depths
+        
+        return results
+
+    def __repr__(self):
+        """str: Return a string that describes the module."""
+        repr_str = self.__class__.__name__
+        repr_str += f"(to_float32={self.to_float32}, "
+        repr_str += f"color_type='{self.color_type}')"
+        return repr_str
+
+@PIPELINES.register_module()
+class LoadMultiViewImageFromFiles:
+    """Load multi channel images from a list of separate channel files.
+
+    Expects results['image_paths'] to be a list of filenames.
+    When using 4d camera data, instead expects results['curr_img'] and results['adjacent_imgs'] to be filled.
+
+    Args:
+        to_float32 (bool): Whether to convert the img to float32.
+            Defaults to False.
+        color_type (str): Color type of the file. Defaults to 'unchanged'.
+    """
+
+    def __init__(self, to_float32=False, color_type="unchanged", camera_4d=False):
+        self.to_float32 = to_float32
+        self.color_type = color_type
+        self.camera_4d = camera_4d # when using 4d camera data, 
+
+    def get_sensor_transforms(self, cam_info, cam_name, info, global2keylidar=None):
+        w, x, y, z = cam_info['cams'][cam_name]['sensor2ego_rotation']
+
+        # sweep sensor to sweep ego is replaced with sensor to lidar
+        # camera to lidar transform
+        camera2lidar = np.eye(4).astype(np.float32)
+        camera2lidar[:3, :3] = cam_info['cams'][cam_name]["sensor2lidar_rotation"]
+        camera2lidar[:3, 3] = cam_info['cams'][cam_name]["sensor2lidar_translation"]
+
+        # sensor2ego_rot = torch.Tensor(
+        #     Quaternion(w, x, y, z).rotation_matrix)
+        # sensor2ego_tran = torch.Tensor(
+        #     cam_info['cams'][cam_name]['sensor2ego_translation'])
+        # sensor2ego = sensor2ego_rot.new_zeros((4, 4))
+        # sensor2ego[3, 3] = 1
+        # sensor2ego[:3, :3] = sensor2ego_rot
+        # sensor2ego[:3, -1] = sensor2ego_tran
+
+
+
+        # sweep ego to global
+        # w, x, y, z = cam_info['cams'][cam_name]['ego2global_rotation']
+        # ego2global_rot = np.array(
+        #     Quaternion(w, x, y, z).rotation_matrix)
+        # ego2global_tran = np.array(
+        #     cam_info['cams'][cam_name]['ego2global_translation'])
+        # ego2global = ego2global_rot.new_zeros((4, 4))
+        # ego2global[3, 3] = 1
+        # ego2global[:3, :3] = ego2global_rot
+        # ego2global[:3, -1] = ego2global_tran
+
+
+        # return sensor2ego, ego2global
+        #TODO probably need aug here
+        # lidar2point = data["lidar_aug_matrix"]
+        # point2lidar = np.linalg.inv(lidar2point)
+        lidar2ego = info["lidar2ego"]
+        ego2global = info["ego2global"]
+        lidar2global = ego2global @ lidar2ego #@ point2lidar
+        if global2keylidar is not None:
+            camera2lidar = global2keylidar @ lidar2global @ camera2lidar # camera2lidar means camera to the lidar of curr_img
+
+        return camera2lidar, lidar2global
+
+    def get_inputs(self, results, flip=None, scale=None):
+        imgs = []
+        # sensor2egos = []
+        sensor2lidars = []
+        lidar2globals = []
+        intrins = []
+        post_rots = []
+        post_trans = []
+        # cam_names = self.choose_cams()
+        # cam_names = results['cam_names']
+        cam_names = []
+        canvas = []
+        
+        for cam_name, cam_data in results['curr_img']['cams'].items():
+            cam_names.append(cam_name)
+            cam_data = cam_data
+            filename = cam_data['data_path']
+            img = Image.open(filename)
+            post_rot = np.eye(2)
+            post_tran = np.zeros(2)
+
+            intrin = np.array(cam_data['camera_intrinsics'], dtype=np.float32)
+
+            # sensor2ego, ego2global = \
+            #     self.get_sensor_transforms(results['curr_img'], cam_name)
+            sensor2lidar, lidar2global = \
+                self.get_sensor_transforms(results['curr_img'], cam_name, results)
+            global2keylidar = np.linalg.inv(lidar2global)
+            # image view augmentation (resize, crop, horizontal flip, rotate)
+            # img_augs = self.sample_augmentation(
+            #     H=img.height, W=img.width, flip=flip, scale=scale)
+            # resize, resize_dims, crop, flip, rotate = img_augs
+            # img, post_rot2, post_tran2 = \
+            #     self.img_transform(img, post_rot,
+            #                        post_tran,
+            #                        resize=resize,
+            #                        resize_dims=resize_dims,
+            #                        crop=crop,
+            #                        flip=flip,
+            #                        rotate=rotate)
+
+            # for convenience, make augmentation matrices 3x3
+            # post_tran = np.zeros(3)
+            # post_rot = np.eye(3)
+            # post_tran[:2] = post_tran2
+            # post_rot[:2, :2] = post_rot2
+
+            canvas.append(np.array(img))
+            imgs.append(img)
+
+            # if True: #self.sequential:
+            #     assert 'adjacent_imgs' in results
+            #     for adj_info in results['adjacent_imgs']:
+            #         filename_adj = adj_info['cams'][cam_name]['data_path']
+            #         img_adjacent = Image.open(filename_adj)
+            #         imgs.append(img_adjacent)
+                    # TODO this one line was uncommented ^
+            intrins.append(intrin)
+            # sensor2egos.append(sensor2ego)
+            sensor2lidars.append(sensor2lidar)
+            lidar2globals.append(lidar2global)
+            # post_rots.append(post_rot)
+            # post_trans.append(post_tran)
+        
+        # print("post", cam_names)
+        #TODO uncomment
+        if True: #self.sequential:
+            for adj_info in results['adjacent_imgs']:
+                # post_trans.extend(post_trans[:len(cam_names)])
+                # post_rots.extend(post_rots[:len(cam_names)])
+                intrins.extend(intrins[:len(cam_names)])
+
+                # align
+                for cam_name in cam_names:
+                    # sensor2ego, ego2global = \
+                    #     self.get_sensor_transforms(adj_info, cam_name)
+                    sensor2lidar, lidar2global = \
+                        self.get_sensor_transforms(adj_info, cam_name, results, global2keylidar=global2keylidar)
+                    # sensor2egos.append(sensor2ego)
+                    sensor2lidars.append(sensor2lidar)
+                    lidar2globals.append(lidar2global)
+                    filename_adj = adj_info['cams'][cam_name]['data_path']
+                    img_adjacent = Image.open(filename_adj)
+                    imgs.append(img_adjacent)
+
+        size = imgs[0].size
+        # imgs = np.stack(imgs)
+
+        # sensor2egos = torch.stack(sensor2egos)
+        # sensor2lidars = np.stack(sensor2lidars)
+        # lidar2globals = np.stack(lidar2globals)
+        # intrins = np.stack(intrins)
+        # post_rots = np.stack(post_rots)
+        # post_trans = np.stack(post_trans)
+        # unravel to list, see `DefaultFormatBundle` in formating.py
+        # which will transpose each image separately and then stack into array
+        # [1600, 900]
+        results["img_shape"] = size
+        results["ori_shape"] = size
+        # Set initial values for default meta_keys
+        results["pad_shape"] = size
+        results["scale_factor"] = 1.0
+        results['canvas'] = canvas
+        intrins = np.stack(intrins, axis=0)
+        results["camera_intrinsics"] = intrins
+        # results["lidar2global"] = lidar2globals
+        results["camera2lidar"] = sensor2lidars
+        # results["img"] = imgs[:6] this didn't fix it
+        results["img"] = imgs
+
+        # return (imgs, sensor2egos, ego2globals, intrins, post_rots, post_trans)
+        return # (imgs, sensor2lidars, ego2globals, intrins)
 
     def __call__(self, results):
         """Call function to load multi-view image from files.
@@ -49,26 +368,30 @@ class LoadMultiViewImageFromFiles:
                 - scale_factor (float): Scale factor.
                 - img_norm_cfg (dict): Normalization configuration of images.
         """
-        filename = results["image_paths"]
-        # img is of shape (h, w, c, num_views)
-        # modified for waymo
-        images = []
-        h, w = 0, 0
-        for name in filename:
-            images.append(Image.open(name))
-        
-        #TODO: consider image padding in waymo
+        if self.camera_4d:
+            self.get_inputs(results)
+            results["filename"] = results["image_paths"]
+        else:
+            filename = results["image_paths"]
+            # img is of shape (h, w, c, num_views)
+            # modified for waymo
+            images = []
+            h, w = 0, 0
+            for name in filename:
+                images.append(Image.open(name))
+            
+            #TODO: consider image padding in waymo
 
-        results["filename"] = filename
-        # unravel to list, see `DefaultFormatBundle` in formating.py
-        # which will transpose each image separately and then stack into array
-        results["img"] = images
-        # [1600, 900]
-        results["img_shape"] = images[0].size
-        results["ori_shape"] = images[0].size
-        # Set initial values for default meta_keys
-        results["pad_shape"] = images[0].size
-        results["scale_factor"] = 1.0
+            results["filename"] = filename
+            # unravel to list, see `DefaultFormatBundle` in formating.py
+            # which will transpose each image separately and then stack into array
+            results["img"] = images
+            # [1600, 900]
+            results["img_shape"] = images[0].size
+            results["ori_shape"] = images[0].size
+            # Set initial values for default meta_keys
+            results["pad_shape"] = images[0].size
+            results["scale_factor"] = 1.0
         
         return results
 

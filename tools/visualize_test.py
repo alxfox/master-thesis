@@ -11,9 +11,9 @@ from mmcv.runner import load_checkpoint
 from torchpack import distributed as dist
 from torchpack.utils.config import configs
 from tqdm import tqdm
-import torchviz
+# import torchviz
 from mmdet3d.core import LiDARInstance3DBoxes
-from mmdet3d.core.utils import visualize_camera, visualize_lidar, visualize_map
+from mmdet3d.core.utils import visualize_camera, visualize_lidar, visualize_map, visualize_depth
 from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet3d.models import build_model
 import sys
@@ -111,6 +111,10 @@ def main() -> None:
             bboxes = outputs[0]["boxes_3d"].tensor.numpy()
             scores = outputs[0]["scores_3d"].numpy()
             labels = outputs[0]["labels_3d"].numpy()
+            pred_depth = outputs[0]["pred_depth"].numpy()
+            gt_depth = outputs[0]["gt_depth"].numpy()
+            # print("depth_shapes", pred_depth.shape, gt_depth.shape, gt_depth.max(), gt_depth.min())
+            cam_points = outputs[0]["cam_points"]
 
             if args.bbox_classes is not None:
                 indices = np.isin(labels, args.bbox_classes)
@@ -138,18 +142,39 @@ def main() -> None:
             masks = masks >= args.map_score
         else:
             masks = None
-
+        index = 0
         if "img" in data:
             for k, image_path in enumerate(metas["filename"]):
-                image = mmcv.imread(image_path)
-                visualize_camera(
+                # print("dd", pred_depth.shape)
+                pred_depth_now = np.sum(pred_depth[index%6] * np.arange(1, 60, step=0.5).reshape(-1,1,1,1), axis=0)
+                # image = mmcv.imread(image_path)
+                # print(len(data["img"].data))
+                # print(data["img"].data[0][0].shape)
+                # print(data["img"].data[0][0].shape)
+                image = data["img"].data[0][0][k] #3,256,704
+                visualize_depth(
                     os.path.join(args.out_dir, f"camera-{k}", f"{name}.png"),
                     image,
-                    bboxes=bboxes,
-                    labels=labels,
-                    transform=metas["lidar2image"][k],
-                    classes=cfg.object_classes,
+                    pred_depth_now,
+                    gt_depth.squeeze()[index%6][...,None]
                 )
+                index += 1
+        # print(cam_points.shape, data["points"].data[0][0].numpy().shape)
+        some_points = []
+        for k, single_cam_points in enumerate(cam_points):
+            colors = ["white", "blue", "green", "yellow", "orange", "red"]
+            visualize_lidar(
+                os.path.join(args.out_dir, f"cam_points_{k}", f"{name}.png"),
+                single_cam_points,
+                bboxes=bboxes,
+                labels=labels,
+                xlim=[cfg.point_cloud_range[d] for d in [0, 3]],
+                ylim=[cfg.point_cloud_range[d] for d in [1, 4]],
+                classes=cfg.object_classes,
+                point_color=colors[k]
+            )
+            some_points.append(single_cam_points[7])
+        # print(some_points)
 
         if "points" in data:
             lidar = data["points"].data[0][0].numpy()

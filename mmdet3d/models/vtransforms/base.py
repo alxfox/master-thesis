@@ -29,15 +29,22 @@ class BaseTransform(nn.Module):
         ybound: Tuple[float, float, float],
         zbound: Tuple[float, float, float],
         dbound: Tuple[float, float, float],
+        depth_decay = False,
+        visualize = False
     ) -> None:
         super().__init__()
         self.in_channels = in_channels
+        self.out_channels = out_channels
         self.image_size = image_size
         self.feature_size = feature_size
         self.xbound = xbound
         self.ybound = ybound
         self.zbound = zbound
         self.dbound = dbound
+        self.depth_decay = depth_decay
+        self.visualize = visualize
+        if self.visualize:
+            self.cam_points_buffer = []
 
         dx, bx, nx = gen_dx_bx(self.xbound, self.ybound, self.zbound)
         self.dx = nn.Parameter(dx, requires_grad=False)
@@ -54,26 +61,42 @@ class BaseTransform(nn.Module):
         iH, iW = self.image_size
         fH, fW = self.feature_size
 
-        ds = (
-            torch.arange(*self.dbound, dtype=torch.float)
-            .view(-1, 1, 1)
-            .expand(-1, fH, fW)
-        )
+        if(self.depth_decay):
+            ds = (
+                # (((torch.arange(0.0, 1.0, 1/118, dtype=torch.float) * (60**(1/2)-1))+1)**2)
+                (torch.linspace(self.dbound[0]**(1/2), self.dbound[1]**(1/2), int((self.dbound[1]-self.dbound[0])/self.dbound[2]), dtype=torch.float)**2)#torch.arange(*self.dbound, dtype=torch.float)
+                .view(-1, 1, 1)
+                .expand(-1, fH, fW)
+            )
+        else:
+            ds = (
+                torch.arange(*self.dbound, dtype=torch.float)
+                .view(-1, 1, 1)
+                .expand(-1, fH, fW)
+            )
         D, _, _ = ds.shape
+        print("ds", ds.shape)
+        print(ds)
 
         xs = (
             torch.linspace(0, iW - 1, fW, dtype=torch.float)
             .view(1, 1, fW)
             .expand(D, fH, fW)
         )
+        print("xs", xs.shape)
         ys = (
             torch.linspace(0, iH - 1, fH, dtype=torch.float)
             .view(1, fH, 1)
             .expand(D, fH, fW)
         )
+        print("xs", ys.shape)
 
         frustum = torch.stack((xs, ys, ds), -1)
+        print("frustum", frustum.shape)
         return nn.Parameter(frustum, requires_grad=False)
+
+    def get_mlp_input(self, sensor2ego, intrin, post_rot, post_tran, bda):
+        return None
 
     @force_fp32()
     def get_geometry(
@@ -90,6 +113,7 @@ class BaseTransform(nn.Module):
         # undo post-transformation
         # B x N x D x H x W x 3
         points = self.frustum - post_trans.view(B, N, 1, 1, 1, 3)
+        # print("points", points.shape)
         points = (
             torch.inverse(post_rots)
             .view(B, N, 1, 1, 1, 3, 3)
@@ -127,12 +151,15 @@ class BaseTransform(nn.Module):
     @force_fp32()
     def bev_pool(self, geom_feats, x):
         B, N, D, H, W, C = x.shape
+        # print(x.shape)
         Nprime = B * N * D * H * W
 
         # flatten x
         x = x.reshape(Nprime, C)
 
         # flatten indices
+        if self.visualize:
+            self.cam_points_buffer.append(geom_feats.view(Nprime, 3).detach())
         geom_feats = ((geom_feats - (self.bx - self.dx / 2.0)) / self.dx).long()
         geom_feats = geom_feats.view(Nprime, 3)
         batch_ix = torch.cat(
@@ -178,19 +205,19 @@ class BaseTransform(nn.Module):
         metas,
         **kwargs,
     ):
-        rots = camera2ego[..., :3, :3]
-        trans = camera2ego[..., :3, 3]
+        # rots = camera2ego[..., :3, :3]
+        # trans = camera2ego[..., :3, 3]
         intrins = camera_intrinsics[..., :3, :3]
         post_rots = img_aug_matrix[..., :3, :3]
         post_trans = img_aug_matrix[..., :3, 3]
-        lidar2ego_rots = lidar2ego[..., :3, :3]
-        lidar2ego_trans = lidar2ego[..., :3, 3]
+        # lidar2ego_rots = lidar2ego[..., :3, :3]
+        # lidar2ego_trans = lidar2ego[..., :3, 3]
         camera2lidar_rots = camera2lidar[..., :3, :3]
         camera2lidar_trans = camera2lidar[..., :3, 3]
 
         extra_rots = lidar_aug_matrix[..., :3, :3]
         extra_trans = lidar_aug_matrix[..., :3, 3]
-
+        # print(camera2lidar_rots.dtype, intrins.dtype)
         geom = self.get_geometry(
             camera2lidar_rots,
             camera2lidar_trans,
@@ -201,9 +228,9 @@ class BaseTransform(nn.Module):
             extra_trans=extra_trans,
         )
 
-        x = self.get_cam_feats(img)
+        x, depth = self.get_cam_feats(img)
         x = self.bev_pool(geom, x)
-        return x
+        return x, depth
 
 
 class BaseDepthTransform(BaseTransform):
@@ -278,6 +305,7 @@ class BaseDepthTransform(BaseTransform):
                 masked_dist = dist[c, on_img[c]]
                 depth[b, c, 0, masked_coords[:, 0], masked_coords[:, 1]] = masked_dist
 
+        self.gt_depth = depth
         extra_rots = lidar_aug_matrix[..., :3, :3]
         extra_trans = lidar_aug_matrix[..., :3, 3]
         geom = self.get_geometry(
@@ -290,6 +318,6 @@ class BaseDepthTransform(BaseTransform):
             extra_trans=extra_trans,
         )
 
-        x = self.get_cam_feats(img, depth)
+        x, depth = self.get_cam_feats(img, depth)
         x = self.bev_pool(geom, x)
-        return x
+        return x, depth

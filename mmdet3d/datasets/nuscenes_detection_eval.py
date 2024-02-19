@@ -130,3 +130,4 @@ class NuscenesDetectionEval(DetectionEval):
         ###
         ### End of changes
         self.sample_tokens = self.gt_boxes.sample_tokens
+        print('Done')

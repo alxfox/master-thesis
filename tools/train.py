@@ -32,7 +32,10 @@ def main():
 
     torch.backends.cudnn.benchmark = cfg.cudnn_benchmark
     torch.cuda.set_device(dist.local_rank())
-
+    # torch.cuda.set_device(1)
+    print(torch.cuda.current_device())
+    print(dist.local_rank())
+    # sys.exit()
     if args.run_dir is None:
         args.run_dir = auto_set_run_dir()
     else:

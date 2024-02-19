@@ -582,7 +582,7 @@ class CenterHead(BaseModule):
         return heatmaps, anno_boxes, inds, masks
 
     @force_fp32(apply_to=("preds_dicts"))
-    def loss(self, gt_bboxes_3d, gt_labels_3d, preds_dicts, aux_preds_dicts=dict(), **kwargs):
+    def loss(self, gt_bboxes_3d, gt_labels_3d, preds_dicts, aux_preds_dicts=dict(), gt_depth=None, depth_preds=None, **kwargs):
         """Loss function for CenterHead.
         Args:
             gt_bboxes_3d (list[:obj:`LiDARInstance3DBoxes`]): Ground
@@ -594,9 +594,11 @@ class CenterHead(BaseModule):
         """
         heatmaps, anno_boxes, inds, masks = self.get_targets(gt_bboxes_3d, gt_labels_3d)
         loss_dict = dict()
-
-        # print(aux_preds_dicts)
+        # print("predx", preds_dicts[0])
+        # print("auxpredx", aux_preds_dicts[0])
         for task_id, aux_preds_dict in enumerate(aux_preds_dicts):
+            # print("auxp",aux_preds_dicts.keys())
+            # print("p",preds_dicts.keys())
             # heatmap focal loss
             aux_preds_dict[0]["heatmap"] = clip_sigmoid(aux_preds_dict[0]["heatmap"])
             num_pos = heatmaps[task_id].eq(1).float().sum().item()
