@@ -120,7 +120,7 @@ def train_model(
         eval_cfg["by_epoch"] = cfg.runner["type"] != "IterBasedRunner"
         eval_hook = DistEvalHook
         runner.register_hook(eval_hook(val_dataloader, **eval_cfg))
-    if(cfg.model.fuser is not None):
+    if(False and cfg.model.fuser is not None):
         print("adding validation hooks for sensor blackouts")
         for sensor in ["lidar", "camera"]:
             # print(cfg.data.val.pipeline)
