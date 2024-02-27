@@ -1,8 +1,6 @@
 use_camera_4d: true
 multi_adj_frame_id_cfg: [1, 2, 1] # number of frames used = multi_adj_frame_id_cfg[1] - multi_adj_frame_id_cfg[0]
 
-
-
 model:
   merge_bev_4d_cfg: 
     type: concat

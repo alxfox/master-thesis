@@ -1,0 +1,4 @@
+# this model makes use of both pretrained camera and LiDAR weights.
+# as the LiDAR checkpoint is loaded last, overlapping weights (i.e. the decoder and head) are loaded from the LiDAR checkpoint
+
+load_from: ["camera_placeholder", "lidar_placeholder"]

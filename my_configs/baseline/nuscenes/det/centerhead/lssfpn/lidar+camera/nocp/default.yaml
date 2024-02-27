@@ -1,10 +1,3 @@
-model:
-  use_aux_loss: ["camera"]
-  fuser:
-    type: ConvFuser
-    in_channels: [80, 256]
-    out_channels: 256
-
 lr_config:
   policy: cyclic
   target_ratio: 5.0

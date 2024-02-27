@@ -1,0 +1,10 @@
+blackout:
+  lidar: 0.2
+  camera: 0.2
+
+find_unused_parameters: true
+
+model:
+  freeze_state:
+    camera: true
+    lidar: true

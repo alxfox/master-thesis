@@ -1,0 +1,2 @@
+# separately prepared checkpoint which contains only camera and LiDAR encoder weights (no decoder/head weights)
+load_from: data/runs/centerhead_fusion_baseline/fusion_baseline_centerhead_prep_bothcp.pth

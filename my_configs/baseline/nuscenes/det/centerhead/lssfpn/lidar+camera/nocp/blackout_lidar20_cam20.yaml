@@ -1,0 +1,5 @@
+blackout:
+  lidar: 0.2
+  camera: 0.2
+
+# resume_from: "runs/run-bdfefb7e-7e5131a8/epoch_5.pth"

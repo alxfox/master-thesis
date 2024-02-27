@@ -1,0 +1,20 @@
+model:
+  encoders:
+    camera:
+      vtransform:
+        xbound: [-54.0, 54.0, 0.3]
+        ybound: [-54.0, 54.0, 0.3]
+    lidar:
+      voxelize:
+        point_cloud_range: ${point_cloud_range}
+        voxel_size: ${voxel_size}
+        max_voxels: [120000, 160000]
+      backbone:
+        sparse_shape: [1440, 1440, 41]
+  heads:
+    object:
+      train_cfg:
+        grid_size: [1440, 1440, 41]
+
+voxel_size: [0.075, 0.075, 0.2]
+point_cloud_range: [-54.0, -54.0, -5.0, 54.0, 54.0, 3.0]

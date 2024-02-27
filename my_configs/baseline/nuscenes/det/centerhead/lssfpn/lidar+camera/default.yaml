@@ -1,5 +1,9 @@
 use_camera_4d: true
 model:
+  fuser:
+    type: ConvFuser
+    in_channels: [80, 256]
+    out_channels: 256
   encoders:
     camera:
       backbone:
