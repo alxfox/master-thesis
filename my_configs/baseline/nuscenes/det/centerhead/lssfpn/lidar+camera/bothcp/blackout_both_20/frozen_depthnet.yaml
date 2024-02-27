@@ -4,7 +4,7 @@ model:
   freeze_state:
     camera: true
     lidar: true
-  # loss_depth_weight: 3.0
+  # loss_depth_weight: 3.0 # no need since camera is frozen
   encoders:
     camera:
       vtransform:
