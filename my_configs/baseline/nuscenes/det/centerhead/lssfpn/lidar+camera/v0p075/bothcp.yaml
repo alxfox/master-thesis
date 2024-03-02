@@ -1,4 +1,4 @@
 # this model makes use of both pretrained camera and LiDAR weights.
 # as the LiDAR checkpoint is loaded last, overlapping weights (i.e. the decoder and head) are loaded from the LiDAR checkpoint
 
-load_from: ["camera_placeholder", "lidar_placeholder"]
+load_from: ["data/runs/centerhead_camera_baseline_giga/run-6e3e476f-014d31c3/epoch_20.pth", "data/runs/centerhead_lidar_baseline_giga/run-6e3e476f-bc212d47/epoch_20.pth"]
