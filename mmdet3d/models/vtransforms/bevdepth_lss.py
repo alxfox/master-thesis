@@ -325,7 +325,6 @@ class BEVDepthLSSTransform(LSSTransform):
         super(BEVDepthLSSTransform, self).__init__(**kwargs)
         self.depthnet = DepthNet(self.in_channels, self.in_channels,
                                   self.out_channels, self.D, **depthnet_cfg)
-        print("I'm real")
     @force_fp32()
     def get_cam_feats(self, x, mlp_input):#, stereo_metas):
         B, N, C, fH, fW = x.shape

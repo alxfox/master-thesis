@@ -4,6 +4,7 @@ runs
 data/
 runs/
 viz/
+viz*/
 pretrained/
 # Byte-compiled / optimized / DLL files
 __pycache__/

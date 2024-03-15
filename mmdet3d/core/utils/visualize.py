@@ -53,11 +53,11 @@ def visualize_depth(
     color: Optional[Tuple[int, int, int]] = None,
     thickness: float = 4,
 ) -> None:
-    image = np.array(image, dtype=np.uint8)#.astype(np.uint8)
+    # print(image.dtype, image.max(), image.min())
+    image = np.array(image*255, dtype=np.uint8)#.astype(np.uint8)
     image = np.transpose(image, axes=(1,2,0))#.astype(np.uint8)
     max_depth = 59.5
     pred_canvas = np.clip((pred_depth*255/max_depth),a_min=0, a_max = 255).astype(np.uint8)
-    # print(pred_depth.shape)
     pred_canvas = cv2.applyColorMap(pred_canvas, cv2.COLORMAP_JET) # blue = 0
     pred_canvas = cv2.resize(pred_canvas, image.shape[1::-1], cv2.INTER_AREA)
     # image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
@@ -69,16 +69,18 @@ def visualize_depth(
     # print(gt_depth.shape)
     gt_canvas = cv2.applyColorMap(gt_canvas, cv2.COLORMAP_JET) # blue = 0
     gt_canvas = cv2.resize(gt_canvas, image.shape[1::-1], cv2.INTER_AREA)
-    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-    # image = cv2.resize(image, (88, 32), cv2.INTER_AREA)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    # image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    # # image = cv2.resize(image, (88, 32), cv2.INTER_AREA)
+    # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     overlay_canvas = np.copy(gt_canvas)
     no_point_mask = np.logical_and(gt_canvas[...,0] == 128, gt_canvas[...,1] == 0)
     # print(gt_canvas.shape,no_point_mask.shape, gt_canvas[0, 100])
     overlay_canvas[no_point_mask] = image[no_point_mask]
+    # print(overlay_canvas[no_point_mask][:,0])#image[no_point_mask]
     gt_canvas = np.concatenate((gt_canvas, overlay_canvas), axis=0)
-
-    canvas = np.concatenate((pred_canvas, gt_canvas), axis=1)
+    # canvas = image
+    canvas = np.concatenate((pred_canvas,gt_canvas), axis=1)
+    # canvas = np.concatenate((pred_canvas_, gt_canvas), axis=1)
     mmcv.mkdir_or_exist(os.path.dirname(fpath))
     mmcv.imwrite(canvas, fpath)
 

@@ -47,6 +47,7 @@ def main() -> None:
     parser.add_argument("--bbox-score", type=float, default=None)
     parser.add_argument("--map-score", type=float, default=0.5)
     parser.add_argument("--out-dir", type=str, default="viz")
+    parser.add_argument("--special", type=bool, default=False)
     args, opts = parser.parse_known_args()
 
     configs.load(args.config, recursive=True)
@@ -78,7 +79,6 @@ def main() -> None:
             broadcast_buffers=False,
         )
         model.eval()
-
     for data in tqdm(dataflow):
         metas = data["metas"].data[0][0]
         name = "{}-{}".format(metas["timestamp"], metas["token"])
@@ -89,7 +89,6 @@ def main() -> None:
             if(False): # for displaying network structure
                 model.train()
                 outputs = model(return_loss=True, **data)
-                print(outputs, len(outputs))
                 # dot = torchviz.make_dot(outputs["loss/object/loss_heatmap"], params=dict(model.named_parameters()), show_attrs=True, show_saved=True)
                 dot = torchviz.make_dot(outputs["loss/object/loss_heatmap"], params=dict(model.named_parameters()))
                 dot.format = 'svg'
@@ -111,10 +110,11 @@ def main() -> None:
             bboxes = outputs[0]["boxes_3d"].tensor.numpy()
             scores = outputs[0]["scores_3d"].numpy()
             labels = outputs[0]["labels_3d"].numpy()
-            pred_depth = outputs[0]["pred_depth"].numpy()
-            gt_depth = outputs[0]["gt_depth"].numpy()
+            if args.special:
+                pred_depth = outputs[0]["pred_depth"].numpy()
+                gt_depth = outputs[0]["gt_depth"].numpy()
+                cam_points = outputs[0]["cam_points"]
             # print("depth_shapes", pred_depth.shape, gt_depth.shape, gt_depth.max(), gt_depth.min())
-            cam_points = outputs[0]["cam_points"]
 
             if args.bbox_classes is not None:
                 indices = np.isin(labels, args.bbox_classes)
@@ -143,38 +143,38 @@ def main() -> None:
         else:
             masks = None
         index = 0
+        # bboxes=None
         if "img" in data:
             for k, image_path in enumerate(metas["filename"]):
-                # print("dd", pred_depth.shape)
-                pred_depth_now = np.sum(pred_depth[index%6] * np.arange(1, 60, step=0.5).reshape(-1,1,1,1), axis=0)
-                # image = mmcv.imread(image_path)
-                # print(len(data["img"].data))
-                # print(data["img"].data[0][0].shape)
-                # print(data["img"].data[0][0].shape)
+
+                if args.special:
+                    pred_depth_now = np.sum(pred_depth[index%6] * np.arange(1, 60, step=0.5).reshape(-1,1,1), axis=0)
+
                 image = data["img"].data[0][0][k] #3,256,704
-                visualize_depth(
-                    os.path.join(args.out_dir, f"camera-{k}", f"{name}.png"),
-                    image,
-                    pred_depth_now,
-                    gt_depth.squeeze()[index%6][...,None]
-                )
+
+                if args.special:
+                    visualize_depth(
+                        os.path.join(args.out_dir, f"depth-{k}", f"{name}.png"),
+                        image,
+                        pred_depth_now,
+                        gt_depth.squeeze()[index%6][...,None]
+                    )
                 index += 1
-        # print(cam_points.shape, data["points"].data[0][0].numpy().shape)
         some_points = []
-        for k, single_cam_points in enumerate(cam_points):
-            colors = ["white", "blue", "green", "yellow", "orange", "red"]
-            visualize_lidar(
-                os.path.join(args.out_dir, f"cam_points_{k}", f"{name}.png"),
-                single_cam_points,
-                bboxes=bboxes,
-                labels=labels,
-                xlim=[cfg.point_cloud_range[d] for d in [0, 3]],
-                ylim=[cfg.point_cloud_range[d] for d in [1, 4]],
-                classes=cfg.object_classes,
-                point_color=colors[k]
-            )
-            some_points.append(single_cam_points[7])
-        # print(some_points)
+        if args.special: # for camera point cloud viz (requires model to buffer the point cloud, search for visualize = False, change value to true in bevfusion.py and base.py)
+            for k, single_cam_points in enumerate(cam_points):
+                colors = ["white", "blue", "green", "yellow", "orange", "red"]
+                visualize_lidar(
+                    os.path.join(args.out_dir, f"cam_points_{k}", f"{name}.png"),
+                    single_cam_points,
+                    bboxes=bboxes,
+                    labels=labels,
+                    xlim=[cfg.point_cloud_range[d] for d in [0, 3]],
+                    ylim=[cfg.point_cloud_range[d] for d in [1, 4]],
+                    classes=cfg.object_classes,
+                    point_color=colors[k]
+                )
+                some_points.append(single_cam_points[7])
 
         if "points" in data:
             lidar = data["points"].data[0][0].numpy()

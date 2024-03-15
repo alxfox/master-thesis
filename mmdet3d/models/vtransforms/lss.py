@@ -37,7 +37,6 @@ class LSSTransform(BaseTransform):
             dbound=dbound,
             depth_decay=depth_decay
         )
-        print("I'm fake")
         self.depthnet = nn.Conv2d(in_channels, self.D + self.C, 1)
         self.downsample_ratio = 8
         if downsample > 1:

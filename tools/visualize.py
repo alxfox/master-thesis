@@ -10,15 +10,13 @@ from mmcv.parallel import MMDistributedDataParallel
 from mmcv.runner import load_checkpoint
 from torchpack import distributed as dist
 from torchpack.utils.config import configs
-
 from tqdm import tqdm
-import torchviz
+
 from mmdet3d.core import LiDARInstance3DBoxes
-from mmdet3d.core.utils import visualize_camera, visualize_lidar, visualize_map, visualize_feature_map
+from mmdet3d.core.utils import visualize_camera, visualize_lidar, visualize_map
 from mmdet3d.datasets import build_dataloader, build_dataset
 from mmdet3d.models import build_model
 
-import sys
 
 def recursive_eval(obj, globals=None):
     if globals is None:
@@ -71,11 +69,11 @@ def main() -> None:
 
     # build the model and load checkpoint
     if args.mode == "pred":
-        modelx = build_model(cfg.model)
-        load_checkpoint(modelx, args.checkpoint, map_location="cpu")
+        model = build_model(cfg.model)
+        load_checkpoint(model, args.checkpoint, map_location="cpu")
 
         model = MMDistributedDataParallel(
-            modelx.cuda(),
+            model.cuda(),
             device_ids=[torch.cuda.current_device()],
             broadcast_buffers=False,
         )
@@ -88,15 +86,6 @@ def main() -> None:
         if args.mode == "pred":
             with torch.inference_mode():
                 outputs = model(**data)
-            if(False): # for displaying network structure
-                model.train()
-                outputs = model(return_loss=True, **data)
-                print(outputs, len(outputs))
-                # dot = torchviz.make_dot(outputs["loss/object/loss_heatmap"], params=dict(model.named_parameters()), show_attrs=True, show_saved=True)
-                dot = torchviz.make_dot(outputs["loss/object/loss_heatmap"], params=dict(model.named_parameters()))
-                dot.format = 'svg'
-                dot.render('viz/torchviz/structure_simple')
-                sys.exit()
 
         if args.mode == "gt" and "gt_bboxes_3d" in data:
             bboxes = data["gt_bboxes_3d"].data[0][0].tensor.numpy()
@@ -131,20 +120,13 @@ def main() -> None:
         else:
             bboxes = None
             labels = None
+
         if args.mode == "gt" and "gt_masks_bev" in data:
             masks = data["gt_masks_bev"].data[0].numpy()
             masks = masks.astype(np.bool)
         elif args.mode == "pred" and "masks_bev" in outputs[0]:
             masks = outputs[0]["masks_bev"].numpy()
             masks = masks >= args.map_score
-        elif args.mode == "pred":
-            masks = data["feature_map"].cuda()
-            print(masks.min(), masks.max(), masks.mean())
-            masks  = modelx.encoders.map.encoder(masks)
-            print(args.map_score)
-            masks = masks.cpu().detach().numpy().squeeze()
-            print(masks.shape)
-            print(masks.min(), masks.max(), masks.mean())
         else:
             masks = None
 
@@ -173,8 +155,7 @@ def main() -> None:
             )
 
         if masks is not None:
-            # visualize_map(
-            visualize_feature_map(
+            visualize_map(
                 os.path.join(args.out_dir, "map", f"{name}.png"),
                 masks,
                 classes=cfg.map_classes,

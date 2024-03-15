@@ -75,24 +75,24 @@ class BaseTransform(nn.Module):
                 .expand(-1, fH, fW)
             )
         D, _, _ = ds.shape
-        print("ds", ds.shape)
-        print(ds)
+        # print("ds", ds.shape)
+        # print(ds)
 
         xs = (
             torch.linspace(0, iW - 1, fW, dtype=torch.float)
             .view(1, 1, fW)
             .expand(D, fH, fW)
         )
-        print("xs", xs.shape)
+        # print("xs", xs.shape)
         ys = (
             torch.linspace(0, iH - 1, fH, dtype=torch.float)
             .view(1, fH, 1)
             .expand(D, fH, fW)
         )
-        print("xs", ys.shape)
+        # print("xs", ys.shape)
 
         frustum = torch.stack((xs, ys, ds), -1)
-        print("frustum", frustum.shape)
+        # print("frustum", frustum.shape)
         return nn.Parameter(frustum, requires_grad=False)
 
     def get_mlp_input(self, sensor2ego, intrin, post_rot, post_tran, bda):

@@ -6,7 +6,7 @@ Key changes are:
 
 - All models run using the CenterHead model. Only the object detection task is supported. The performance is worse than the TransFusionHead but training is stable.
     
-    - The TransFusionHead is very unstable during training if hyperparameters are not correctly tuned (and will crash in that case) making it hard to use for experimentation
+    - The TransFusionHead is unstable during training if hyperparameters are not correctly tuned (and will crash in that case) making it hard to use for experimentation
 
 - All used configurations for experiments may be found under ```configs/nuscenes/det/centerhead/lssfpn/```
 - It is recommended to always load config files from the config folder instead of from the copied version next to the checkpoint
@@ -16,17 +16,28 @@ Key changes are:
 
 #### Fusion Training
 ```
-torchpack dist-run -np 8 python tools/train.py configs/nuscenes/det/transfusion/secfpn/camera+lidar/swint_v0p075/convfuser.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from pretrained/lidar-only-det.pth 
+torchpack dist-run -np 2 python tools/train.py configs/nuscenes/det/transfusion/secfpn/camera+lidar/swint_v0p075/convfuser.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth --load_from pretrained/lidar-only-det.pth 
 ```
 
 #### Camera Training
 ```
-torchpack dist-run -np 8 python tools/train.py configs/nuscenes/det/centerhead/lssfpn/camera/256x704/swint/default.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth
+torchpack dist-run -np 2 python tools/train.py configs/nuscenes/det/centerhead/lssfpn/camera/256x704/swint/default.yaml --model.encoders.camera.backbone.init_cfg.checkpoint pretrained/swint-nuimages-pretrained.pth
 ```
 
 #### LiDAR Training
 ```
-torchpack dist-run -np 8 python tools/train.py configs/nuscenes/det/transfusion/secfpn/lidar/voxelnet_0p075.yaml
+torchpack dist-run -np 2 python tools/train.py configs/nuscenes/det/transfusion/secfpn/lidar/voxelnet_0p075.yaml
+```
+
+#### Validation
+```
+torchpack dist-run -np 2 python tools/test.py configs/../default.yaml checkpoints/../latest.pth --eval bbox
+```
+
+#### Visualize
+```
+torchpack dist-run -np 2 python tools/visualize.py configs/../default.yaml checkpoints/../latest.pth --mode gt
+torchpack dist-run -np 2 python tools/visualize.py configs/../default.yaml checkpoints/../latest.pth --mode pred
 ```
 
 
