@@ -1,4 +1,0 @@
-model:
-  freeze_state:
-    camera: true
-    lidar: true

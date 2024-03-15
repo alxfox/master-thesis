@@ -1,0 +1,5 @@
+# Fusion model without checkpoint
+# + both blackout
+blackout:
+  lidar: 0.2
+  camera: 0.2

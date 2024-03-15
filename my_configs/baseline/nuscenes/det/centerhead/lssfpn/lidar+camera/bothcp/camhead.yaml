@@ -1,2 +1,0 @@
-# camera checkpoint is loaded second so the decoder & head weights are taken from there
-load_from: ["data/runs/centerhead_lidar_baseline/run-e50d2cdf-a07c0f6a/epoch_20.pth", "data/pretrained/camera-only-det.pth"]

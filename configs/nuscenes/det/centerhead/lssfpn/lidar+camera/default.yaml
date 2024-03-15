@@ -1,16 +1,11 @@
-# Base camera model (the original provided by BEVFusion)
-# When performing camera-only training, use the following swinT checkpoint (pretrained on nuImages): # torchpack dist-run -np 8 python tools/train.py configs/nuscenes/det/centerhead/lssfpn/camera/256x704/swint/default.yaml --model.encoders.camera.backbone.init_cfg.checkpoint data/pretrained/swint-nuimages-pretrained.pth
+# Base fusion model
 
-use_camera_4d: true
-augment3d:
-  scale: [0.95, 1.05]
-  rotate: [-0.3925, 0.3925]
-  translate: 0
-
+use_camera_4d: true # 4d fusion is not actually performed unless multi_adj_frame_id_cfg is set to a value other than [1, 1, 1]
 model:
-  decoder:
-    backbone:
-      in_channels: 80
+  fuser:
+    type: ConvFuser
+    in_channels: [80, 256]
+    out_channels: 256
   encoders:
     camera:
       backbone:
@@ -58,39 +53,38 @@ model:
         zbound: [-10.0, 10.0, 20.0]
         dbound: ${depth_bound}
         downsample: 2
-    #   type: GeneralizedResNet
-    #   blocks:
-    #     - [2, 128, 2]
-    #     - [2, 256, 2]
-    #     - [2, 512, 1]
-    # neck:
-    #   type: LSSFPN
-    #   in_indices: [-1, 0]
-    #   in_channels: [512, 128]
-    #   out_channels: 256
-    #   scale_factor: 2
-
-optimizer:
-  paramwise_cfg:
-    custom_keys:
-      absolute_pos_embed:
-        decay_mult: 0
-      relative_position_bias_table:
-        decay_mult: 0
-      encoders.camera.backbone:
-        lr_mult: 0.1
-
-
-lr_config:
-  policy: cyclic
-  target_ratio: 5.0
-  cyclic_times: 1
-  step_ratio_up: 0.4
-
-momentum_config:
-  policy: cyclic
-  cyclic_times: 1
-  step_ratio_up: 0.4
+    lidar:
+      voxelize:
+        max_num_points: 10
+        point_cloud_range: ${point_cloud_range}
+        voxel_size: ${voxel_size}
+        max_voxels: [90000, 120000]
+      backbone:
+        type: SparseEncoder
+        in_channels: 5
+        sparse_shape: [1024, 1024, 41]
+        output_channels: 128
+        order:
+          - conv
+          - norm
+          - act
+        encoder_channels:
+          - [16, 16, 32]
+          - [32, 32, 64]
+          - [64, 64, 128]
+          - [128, 128]
+        encoder_paddings:
+          - [0, 0, 1]
+          - [0, 0, 1]
+          - [0, 0, [1, 1, 0]]
+          - [0, 0]
+        block_type: basicblock
 
 data:
-  samples_per_gpu: 12
+  samples_per_gpu: 8
+  workers_per_gpu: 8
+
+optimizer:
+  lr: 0.5e-4
+
+max_epochs: 6

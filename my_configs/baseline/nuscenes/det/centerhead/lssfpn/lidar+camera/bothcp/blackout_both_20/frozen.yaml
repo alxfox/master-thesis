@@ -1,6 +1,0 @@
-find_unused_parameters: true
-
-model:
-  freeze_state:
-    camera: true
-    lidar: true

@@ -1,0 +1,21 @@
+# Fusion model with both checkpoints, with blackout both, with depthnet + depth supervision
+
+model:
+  encoders:
+    camera:
+      vtransform:
+        depthnet_cfg:
+          use_dcn: false
+          aspp_mid_channels: 96
+        type: BEVDepthLSSTransform
+        image_size: ${image_size}
+        in_channels: 256
+        out_channels: 80
+        feature_size: ${[image_size[0] // 8, image_size[1] // 8]}
+        xbound: [-51.2, 51.2, 0.4]
+        ybound: [-51.2, 51.2, 0.4]
+        zbound: [-10.0, 10.0, 20.0]
+        dbound: ${depth_bound}
+        downsample: 2
+
+load_from: ["data/runs/centerhead_camera_depthnet/run-bec96e2c-68e66c18/epoch_20.pth", "data/runs/centerhead_lidar_baseline/run-e50d2cdf-a07c0f6a/epoch_20.pth"]

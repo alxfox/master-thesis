@@ -1,0 +1,12 @@
+# NOT part of the thesis models
+# base camera model with only the depth supervision (no improved depthnet)
+
+model:
+  loss_depth_weight: 3.0
+  # encoders:
+  #   camera:
+  #     vtransform:
+  #       depthnet_cfg:
+  #         use_dcn: false
+  #         aspp_mid_channels: 96
+  #       type: BEVDepthLSSTransform

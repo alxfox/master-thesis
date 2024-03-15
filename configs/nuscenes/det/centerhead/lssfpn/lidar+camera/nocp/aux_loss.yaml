@@ -1,0 +1,4 @@
+# unused for thesis
+
+model:
+  use_aux_loss: ["camera"]

@@ -1,0 +1,18 @@
+# NOT part of the thesis models
+# reduced camera point cloud resolution at higher distance (for lower memory usage)
+
+model:
+  encoders:
+    camera:
+      vtransform:
+        dbound: ${depth_bound}
+        depth_decay: false
+
+# for single gpu
+data:
+  samples_per_gpu: 15 
+  workers_per_gpu: 8
+
+# for 2x gpu
+optimizer:
+  lr: 1.6667e-4

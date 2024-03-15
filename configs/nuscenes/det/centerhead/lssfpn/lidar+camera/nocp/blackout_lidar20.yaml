@@ -1,0 +1,4 @@
+# Fusion model without checkpoint
+# + LiDAR blackout
+blackout:
+  lidar: 0.2

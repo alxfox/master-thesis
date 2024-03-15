@@ -1,0 +1,5 @@
+# Fusion model with both checkpoints
+# + LiDAR blackout
+
+blackout:
+  lidar: 0.2
