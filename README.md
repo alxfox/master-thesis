@@ -1,4 +1,33 @@
-# Robust BEVFusion
+# Methods for Sensor Failure Mitigation in 3D Object Detection
+
+### Master's Thesis at Technical University of Munich (TUM)
+This Master's thesis was completed at TUM's [Chair of Automotive Technology](https://www.mos.ed.tum.de/en/ftm/home/) as part of the [Master of Science: Informatics](https://www.tum.de/en/studies/degree-programs/detail/informatics-master-of-science-msc) degree.\
+The topic was supervised by [Prof. Dr.-Ing. Markus Lienkamp](https://www.mos.ed.tum.de/en/ftm/members/staff/prof-dr-ing-markus-lienkamp-personal-data/).\
+Special thanks goes to my advisor [M. Sc. Felix Fent](https://www.mos.ed.tum.de/en/ftm/members/staff/felix-fent-msc/), Ph. D candidate at the Chair of Automotive Technology.
+
+- 📄 [Read the Thesis](paper.pdf)
+- 📊 [View the Presentation Slides](slides.pdf)
+
+---
+
+## Abstract
+Accurate detection and modeling of the environment are crucial for developing autonomous driving systems.
+State-of-the-art methods use sensor fusion, combining camera and LiDAR data, to surpass the performance of single-sensor methods.
+However, these methods experience a significant performance drop in the event of a single sensor failure.
+
+This Master’s Thesis proposes, implements, and evaluates a set of methods to mitigate this deficiency in existing sensor fusion models.
+
+Key findings include:
+- The proposed methods are **very effective** at **mitigating** the effects of **single sensor failure**.
+- They also significantly improve performance in scenarios of **partial sensor failure**, such as partial occlusions.
+- The **negative impact** on baseline performance (all sensors operating correctly) is **negligible**.
+- Methods are **model-agnostic**, allowing for easy integration into other sensor fusion frameworks.
+
+In summary, presented methods enable a sensor fusion system to retain performance close to that of a single-sensor model in the event of failure of the respective added sensor.
+
+---
+
+## Implementation Details
 
 This is a modified version of the [BEVFusion](https://github.com/mit-han-lab/bevfusion) framework.
 
@@ -12,7 +41,7 @@ Key changes are:
 - It is recommended to always load config files from the config folder instead of from the copied version next to the checkpoint
 
 
-## Usage
+### Usage
 
 #### Fusion Training
 ```
@@ -41,13 +70,13 @@ torchpack dist-run -np 2 python tools/visualize.py configs/../default.yaml check
 ```
 
 
-## Setting up the Environment
-### 1. Create Docker Image
+### Setting up the Environment
+#### 1. Create Docker Image
 ```
 $ cd docker && docker build . -t bevfusion-robust
 ```
 
-### 2. Create Docker Container
+#### 2. Create Docker Container
 ```
 $ nvidia-docker run -it -v `pwd`/../data:/dataset --shm-size 16g bevfusion-robust /bin/bash
 
@@ -69,7 +98,7 @@ $ nvidia-docker run ...
 With:
 $ docker run --runtime=nvidia --gpus all ...
 ```
-### 3. Ensure versions are correct
+#### 3. Ensure versions are correct
 There is an issue with the mmcv install so run this:
 ```
 $ pip uninstall mmcv
@@ -85,7 +114,7 @@ $ pip install setuptools==59.5.0
 $ pip install numpy==1.23.5
 $ pip install yapf==0.40.1
 ```
-### 4. Install the repository in the docker
+#### 4. Install the repository in the docker
 ```
 $ cd home && git clone https://gitlab.lrz.de/perception/bevfusion.git
 $ cd bevfusion && git checkout robustness
@@ -106,7 +135,7 @@ bevfusion
 |   |   ├── v1.0-trainval
 ```
 
-### 5. Run Dataset Preprocessing (Once)
+#### 5. Run Dataset Preprocessing (Once)
 ```
 $ python tools/create_data.py nuscenes --root-path ./data/nuscenes --out-dir ./data/nuscenes --extra-tag nuscenes
 ```
