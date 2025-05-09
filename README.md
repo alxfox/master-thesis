@@ -25,6 +25,8 @@ Key findings include:
 
 In summary, presented methods enable a sensor fusion system to retain performance close to that of a single-sensor model in the event of failure of the respective added sensor.
 
+![Graphic](assets/MethodComparison.png)
+
 ---
 
 ## Implementation Details
@@ -40,6 +42,9 @@ Key changes are:
 - All used configurations for experiments may be found under ```configs/nuscenes/det/centerhead/lssfpn/```
 - It is recommended to always load config files from the config folder instead of from the copied version next to the checkpoint
 
+An overview of the Methodology applied:
+
+![Graphic](assets/MethodOverview.png)
 
 ### Usage
 
